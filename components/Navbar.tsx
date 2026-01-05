@@ -169,7 +169,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isRTL = language === 'ar';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[110] flex justify-center p-2 md:p-4 pointer-events-none safe-area-inset-top" dir={isRTL ? 'rtl' : 'ltr'}>
+   <header className="fixed top-0 left-0 right-0 z-[110] flex justify-center p-2 md:p-4 pointer-events-none md:pointer-events-auto safe-area-inset-top"
+     
       <nav 
         className={`pointer-events-auto flex items-center gap-2 md:gap-4 px-3 md:px-4 py-2 rounded-full transition-all duration-700 ease-in-out ${
           isScrolled 
