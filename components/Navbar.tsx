@@ -279,17 +279,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                    style={{ boxShadow: `0 0 20px ${accentColor}44` }} />
             </button>
 
-            {isMenuOpen && currentUser && (
+     {isMenuOpen && currentUser && (
   <div
     className={`
       absolute mt-4 z-[120] p-3
-      w-[calc(100vw-3rem)] max-w-xs
-      left-1/2 -translate-x-1/2
-      md:w-72 md:${isRTL ? 'left-0 -translate-x-0' : 'right-0 translate-x-0'}
       bg-white rounded-[2.5rem]
       shadow-[0_25px_80px_rgba(0,0,0,0.2)]
       border border-white overflow-hidden
       animate-in zoom-in-95 duration-300 origin-top
+
+      /* Mobile : centré sous l'avatar, largeur limitée à l'écran */
+      left-1/2 -translate-x-1/2
+      w-[calc(100vw-2.5rem)] max-w-sm
+
+      /* À partir de md : aligné au bouton comme avant */
+      md:w-72 md:max-w-none md:translate-x-0
+      ${isRTL ? 'md:left-0' : 'md:right-0'}
     `}
   >
     {/* contenu inchangé */}
