@@ -301,7 +301,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   border border-white overflow-hidden
                   animate-in zoom-in-95 duration-300 origin-top
                   left-1/2 -translate-x-1/2
-                  w-[calc(100vw-2.5rem)] max-w-sm
+                        w-[90vw] max-w-xs
                   md:w-72 md:max-w-none md:translate-x-0
                   ${isRTL ? 'md:left-0' : 'md:right-0'}
                 `}
