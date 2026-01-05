@@ -1,0 +1,23 @@
+
+{
+  "name": "LOCADZ Luxury Rentals",
+  "short_name": "LOCADZ",
+  "description": "L'exceptionnel vous attend en Algérie.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/avataaars/svg?seed=locadz-icon",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/avataaars/svg?seed=locadz-icon",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

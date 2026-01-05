@@ -1,0 +1,9 @@
+
+{
+  "name": "LOCADZ - Airbnb Clone",
+  "description": "A premium Airbnb-style vacation rental application for Algeria with AI-powered personalized travel recommendations and smart property descriptions using Gemini 3 Flash.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

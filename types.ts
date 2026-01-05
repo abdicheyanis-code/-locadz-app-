@@ -1,0 +1,130 @@
+
+export type UserRole = 'TRAVELER' | 'HOST' | 'ADMIN';
+export type VerificationStatus = 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type AppLanguage = 'fr' | 'en' | 'ar';
+export type BookingStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'PAID' | 'CANCELLED' | 'REJECTED';
+export type PaymentMethod = 'ON_ARRIVAL' | 'BARIDIMOB' | 'RIB';
+
+export interface Category {
+  id: string;
+  label: string;
+  icon: string;
+  background_image?: string;
+  background_video?: string;
+}
+
+export interface Review {
+  id: string;
+  property_id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+}
+
+export interface PropertyImage {
+  id: string;
+  property_id: string;
+  image_url: string;
+  created_at: string;
+}
+
+export interface Message {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  property_id?: string;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+  sender_name?: string;
+  sender_avatar?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  full_name: string;
+  email: string;
+  phone_number?: string;
+  avatar_url: string;
+  role: UserRole;
+  is_verified: boolean;
+  is_phone_verified?: boolean;
+  id_verification_status: VerificationStatus;
+  id_document_url?: string;
+  payout_details: PayoutDetails;
+  created_at: string;
+}
+
+export interface PayoutDetails {
+  method: 'CCP' | 'RIB' | 'NONE';
+  accountName: string;
+  accountNumber: string;
+  bankName?: string;
+}
+
+/* Added Payout interface for host bank account details and payment orchestration */
+export interface Payout {
+  id: string;
+  host_id: string;
+  method: 'CCP' | 'RIB';
+  account_name: string;
+  account_number: string;
+  bank_name?: string;
+  created_at: string;
+}
+
+/* Added PayoutRecord interface for historical payment tracking in host dashboard */
+export interface PayoutRecord {
+  id: string;
+  amount: number;
+  date: string;
+  method: 'CCP' | 'RIB';
+  status: 'COMPLETED' | 'PROCESSING';
+}
+
+export interface Property {
+  id: string;
+  host_id: string;
+  title: string;
+  description: string;
+  location: string;
+  price: number;
+  category: string;
+  rating: number;
+  reviews_count: number;
+  images: PropertyImage[]; 
+  created_at: string;
+  latitude: number;
+  longitude: number;
+  amenities?: string[];
+  isFavorite?: boolean;
+  hostName?: string;
+  isHostVerified?: boolean;
+}
+
+export interface Booking {
+  id: string;
+  property_id: string;
+  traveler_id: string;
+  start_date: string;
+  end_date: string;
+  total_price: number;
+  commission_fee: number;
+  status: BookingStatus;
+  payment_method: PaymentMethod;
+  payment_id?: string;
+  receipt_url?: string; 
+  created_at: string;
+  property_title?: string;
+  traveler_name?: string;
+}
+
+export interface Favorite {
+  id: string;
+  traveler_id: string; 
+  property_id: string;
+  created_at: string;
+}

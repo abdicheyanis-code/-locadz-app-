@@ -1,0 +1,274 @@
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Property, UserProfile, PaymentMethod, Payout, AppLanguage } from '../types';
+import { calculatePricing, createLocalPaymentSession, formatCurrency } from '../services/stripeService';
+import { bookingService } from '../services/bookingService';
+import { payoutService } from '../services/payoutService';
+import { ReviewSection } from './ReviewSection';
+import L from 'leaflet';
+
+interface PropertyDetailProps {
+  property: Property;
+  isOpen: boolean;
+  currentUser: UserProfile | null;
+  onClose: () => void;
+  onBookingSuccess: () => void;
+  language: AppLanguage;
+  translations: any;
+}
+
+type Step = 'OVERVIEW' | 'DATES' | 'CONFIRMATION' | 'UPLOAD_RECEIPT' | 'PROCESSING' | 'SUCCESS' | 'REVIEWS' | 'MAP';
+
+const PropertyMap: React.FC<{ property: Property }> = ({ property }) => {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || !property.latitude || !property.longitude) return;
+
+    if (!mapRef.current) {
+      mapRef.current = L.map(mapContainerRef.current).setView([property.latitude, property.longitude], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(mapRef.current);
+
+      const customIcon = L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div style="background-color: #4f46e5; width: 40px; height: 40px; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 20px;">🏠</div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      });
+
+      L.marker([property.latitude, property.longitude], { icon: customIcon }).addTo(mapRef.current)
+        .bindPopup(`<div style="font-family: 'Inter', sans-serif; font-weight: 800; color: #1e1b4b;">${property.title}</div>`)
+        .openPopup();
+    }
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [property]);
+
+  return (
+    <div className="w-full h-[400px] md:h-[500px] animate-in fade-in zoom-in-95 duration-700">
+      <div ref={mapContainerRef} className="w-full h-full shadow-2xl border-4 border-white/50" />
+      <div className="mt-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center gap-3">
+        <span className="text-xl">📍</span>
+        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-900 leading-tight">
+          Emplacement approximatif • {property.location}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export const PropertyDetail: React.FC<PropertyDetailProps> = ({
+  property,
+  isOpen,
+  currentUser,
+  onClose,
+  onBookingSuccess,
+  language,
+  translations: t
+}) => {
+  const [step, setStep] = useState<Step>('OVERVIEW');
+  const [currentImg, setCurrentImg] = useState(0);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [receipt, setReceipt] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ON_ARRIVAL');
+  const [hostPayout, setHostPayout] = useState<Payout | null>(null);
+  const [isBlocking, setIsBlocking] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      setStep('OVERVIEW');
+      setCurrentImg(0);
+      setHostPayout(payoutService.getByHost(property.host_id));
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isOpen, property.host_id]);
+
+  const nights = useMemo(() => {
+    if (!startDate || !endDate) return 0;
+    const s = new Date(startDate);
+    const e = new Date(endDate);
+    const diff = e.getTime() - s.getTime();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  }, [startDate, endDate]);
+
+  const pricing = calculatePricing(property.price, nights || 1);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setReceipt(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleBooking = async () => {
+    if (paymentMethod === 'BARIDIMOB' && !receipt && step !== 'UPLOAD_RECEIPT') {
+      setStep('UPLOAD_RECEIPT');
+      return;
+    }
+
+    setStep('PROCESSING');
+    setIsBlocking(true);
+
+    // VÉRIFICATION DE DISPONIBILITÉ DERNIÈRE SECONDE
+    const isAvail = await bookingService.isRangeAvailable(property.id, new Date(startDate), new Date(endDate));
+    
+    if (!isAvail) {
+      alert("Désolé, ces dates viennent d'être bloquées par un autre voyageur.");
+      setStep('DATES');
+      setIsBlocking(false);
+      return;
+    }
+
+    const result = await createLocalPaymentSession(property.id, pricing);
+    
+    if (result.success) {
+      const newBooking = await bookingService.createBooking({
+        property_id: property.id,
+        traveler_id: currentUser?.id || 'guest_user',
+        start_date: startDate,
+        end_date: endDate,
+        total_price: pricing.total,
+        payment_method: paymentMethod,
+        payment_id: result.transactionId,
+        receipt_url: receipt || undefined
+      });
+
+      if (newBooking) {
+        setStep('SUCCESS');
+        onBookingSuccess();
+      }
+    } else {
+      setStep('CONFIRMATION');
+    }
+    setIsBlocking(false);
+  };
+
+  if (!isOpen) return null;
+  const isRTL = language === 'ar';
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center" dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className="absolute inset-0 bg-indigo-950/40 backdrop-blur-2xl animate-in fade-in duration-500" onClick={onClose} />
+
+      <div className="relative w-full max-w-6xl h-[100dvh] md:h-[90vh] bg-white md:rounded-[4rem] shadow-[0_60px_150px_rgba(0,0,0,0.5)] border-none md:border border-white/40 overflow-hidden flex flex-col md:flex-row animate-in slide-in-from-bottom-20 duration-500">
+        
+        <button onClick={onClose} className={`absolute top-6 ${isRTL ? 'right-6' : 'left-6'} z-50 bg-white/20 hover:bg-white/40 text-white p-4 rounded-full backdrop-blur-xl transition-all border border-white/20 shadow-xl active:scale-90 group`}>
+          <svg className={`w-6 h-6 transition-transform ${isRTL ? 'group-hover:translate-x-1' : 'group-hover:-translate-x-1'} ${isRTL ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        </button>
+
+        <div className="w-full md:w-[60%] h-[35vh] md:h-full relative overflow-hidden bg-black group/gallery">
+          <div className="absolute inset-0 flex transition-transform duration-700 ease-out" style={{ transform: `translateX(-${currentImg * 100}%)` }}>
+            {property.images.map((img) => (
+              <img key={img.id} src={img.image_url} className="w-full h-full object-cover flex-shrink-0" alt={property.title} />
+            ))}
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
+          <div className="absolute bottom-12 ${isRTL ? 'right-8' : 'left-8'} pointer-events-none">
+            <h2 className="text-4xl md:text-7xl font-black text-white italic tracking-tighter drop-shadow-2xl leading-tight uppercase">{property.title}</h2>
+            <p className="text-white/70 font-bold text-lg md:text-xl mt-2 flex items-center gap-2"><span>📍</span> {property.location}</p>
+          </div>
+        </div>
+
+        <div className="w-full md:w-[40%] flex flex-col bg-white overflow-y-auto no-scrollbar relative">
+          <div className="p-8 md:p-12 space-y-8 flex-1">
+            
+            {(step === 'OVERVIEW' || step === 'REVIEWS' || step === 'MAP') && (
+              <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-4">
+                <button onClick={() => setStep('OVERVIEW')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${step === 'OVERVIEW' ? 'bg-white shadow-lg text-indigo-600' : 'text-gray-400'}`}>Détails</button>
+                <button onClick={() => setStep('MAP')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${step === 'MAP' ? 'bg-white shadow-lg text-indigo-600' : 'text-gray-400'}`}>Carte</button>
+                <button onClick={() => setStep('REVIEWS')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${step === 'REVIEWS' ? 'bg-white shadow-lg text-indigo-600' : 'text-gray-400'}`}>Avis</button>
+              </div>
+            )}
+
+            {step === 'OVERVIEW' && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-10">
+                <p className="text-indigo-950 font-medium italic text-2xl leading-relaxed">"{property.description}"</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-indigo-50/50 p-6 rounded-[2.5rem] border border-indigo-100/50 shadow-inner group">
+                    <p className="text-[9px] font-black text-indigo-300 uppercase tracking-widest mb-1">Prix Nuitée</p>
+                    <p className="text-2xl font-black text-indigo-950">{formatCurrency(property.price)}</p>
+                  </div>
+                  <div className="bg-amber-50/50 p-6 rounded-[2.5rem] border border-amber-100/50 shadow-inner group">
+                    <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">Qualité Hôte</p>
+                    <p className="text-2xl font-black text-amber-600">{property.rating} ★</p>
+                  </div>
+                </div>
+                <button onClick={() => setStep('DATES')} className="w-full py-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95">RÉSERVER CE SÉJOUR</button>
+              </div>
+            )}
+
+            {step === 'DATES' && (
+              <div className="animate-in slide-in-from-right duration-500 space-y-10">
+                <button onClick={() => setStep('OVERVIEW')} className="text-indigo-400 font-black uppercase text-[10px] tracking-[0.3em]">← RETOUR</button>
+                <h3 className="text-3xl font-black italic text-indigo-950 tracking-tighter">Dates de séjour</h3>
+                <div className="p-8 bg-indigo-50/50 rounded-[2.5rem] border border-indigo-100 space-y-6 shadow-inner">
+                  <div><label className="text-[9px] font-black text-indigo-300 uppercase block mb-1 px-1">Arrivée</label><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-transparent font-black text-xl text-indigo-950 outline-none" /></div>
+                  <div className="h-[1px] bg-indigo-100/50" />
+                  <div><label className="text-[9px] font-black text-indigo-300 uppercase block mb-1 px-1">Départ</label><input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-transparent font-black text-xl text-indigo-950 outline-none" /></div>
+                </div>
+                {nights > 0 && (
+                  <div className="p-8 bg-indigo-950 rounded-[2.5rem] text-white space-y-4 shadow-2xl">
+                    <div className="flex justify-between text-[10px] font-black opacity-50 uppercase"><span>{nights} nuits x {formatCurrency(property.price)}</span><span>{formatCurrency(nights * property.price)}</span></div>
+                    <div className="flex justify-between text-[10px] font-black opacity-50 uppercase"><span>Frais de service (8%)</span><span>{formatCurrency(pricing.commission)}</span></div>
+                    <div className="h-[1px] bg-white/10 my-4" />
+                    <div className="flex justify-between items-end"><span className="text-2xl font-black italic tracking-tighter">Total</span><span className="text-4xl font-black text-indigo-300">{formatCurrency(pricing.total)}</span></div>
+                  </div>
+                )}
+                <button onClick={() => setStep('CONFIRMATION')} disabled={nights <= 0} className="w-full py-6 bg-indigo-600 disabled:opacity-30 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl transition-all">CONTINUER</button>
+              </div>
+            )}
+
+            {step === 'CONFIRMATION' && (
+              <div className="animate-in slide-in-from-right duration-500 space-y-8 pb-10">
+                <button onClick={() => setStep('DATES')} className="text-indigo-400 font-black uppercase text-[10px] tracking-[0.3em]">← RETOUR</button>
+                <h3 className="text-2xl font-black italic text-indigo-950 tracking-tighter uppercase">Paiement</h3>
+                <div className="grid grid-cols-1 gap-3">
+                  <button onClick={() => setPaymentMethod('ON_ARRIVAL')} className={`p-6 rounded-[2rem] border-2 transition-all flex items-center gap-4 text-left ${paymentMethod === 'ON_ARRIVAL' ? 'border-indigo-600 bg-indigo-50 shadow-xl' : 'border-gray-100 bg-white'}`}><div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${paymentMethod === 'ON_ARRIVAL' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>🤝</div><div><span className="text-xs font-black uppercase block text-indigo-900">À l'arrivée</span><span className="text-[9px] font-bold text-gray-400 leading-none">Paiement main à main</span></div></button>
+                  <button onClick={() => setPaymentMethod('BARIDIMOB')} disabled={!hostPayout} className={`p-6 rounded-[2rem] border-2 transition-all flex items-center gap-4 text-left ${!hostPayout ? 'opacity-40 grayscale' : paymentMethod === 'BARIDIMOB' ? 'border-indigo-600 bg-indigo-50 shadow-xl' : 'border-gray-100 bg-white'}`}><div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${paymentMethod === 'BARIDIMOB' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>📲</div><div><span className="text-xs font-black uppercase block text-indigo-900">BaridiMob</span><span className="text-[9px] font-bold text-gray-400 leading-none">{hostPayout ? "Virement Algérie Poste" : "Non configuré"}</span></div></button>
+                </div>
+                <button onClick={handleBooking} className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl transition-all">DEMANDER À RÉSERVER</button>
+              </div>
+            )}
+
+            {step === 'PROCESSING' && (
+              <div className="h-full flex flex-col items-center justify-center text-center py-20 animate-in zoom-in-95">
+                <div className="w-28 h-28 border-4 border-indigo-50 border-t-indigo-600 rounded-full animate-spin mb-12" />
+                <h3 className="text-2xl font-black italic text-indigo-950 uppercase tracking-tight">Vérification de disponibilité...</h3>
+              </div>
+            )}
+
+            {step === 'SUCCESS' && (
+              <div className="h-full flex flex-col items-center justify-center text-center py-20 animate-in zoom-in-95 duration-700">
+                <div className="w-32 h-32 bg-amber-500 rounded-full flex items-center justify-center shadow-2xl mb-12 animate-bounce-slow">
+                  <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <h2 className="text-5xl font-black text-indigo-950 italic tracking-tighter mb-4">Demande Envoyée</h2>
+                <p className="text-gray-500 font-bold text-xs uppercase tracking-widest mb-12 px-8 leading-relaxed">
+                  L'hôte a été notifié. Il a <span className="text-indigo-600">24 heures</span> pour accepter ou refuser votre demande. Vous recevrez une notification.
+                </p>
+                <button onClick={onClose} className="w-full py-6 bg-indigo-950 hover:bg-black text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-xl transition-all">TERMINER</button>
+              </div>
+            )}
+
+            {step === 'MAP' && <PropertyMap property={property} />}
+            {step === 'REVIEWS' && <ReviewSection propertyId={property.id} currentUser={currentUser} />}
+
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
