@@ -4,12 +4,13 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 
 // Enregistrement du Service Worker pour l'optimisation mobile/PC
+// TEMP : on désactive le service worker pour éviter les problèmes de cache
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(registration => {
-      console.log('LOCADZ PWA Active:', registration.scope);
-    }).catch(err => {
-      console.log('PWA Register Fail:', err);
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      registrations.forEach(reg => {
+        reg.unregister();
+      });
     });
   });
 }
