@@ -1,4 +1,4 @@
-
+const USE_LOCAL_FALLBACK = import.meta.env.DEV; // true en dev, false en prod
 import { supabase } from '../supabaseClient';
 import { Property, PropertyImage } from '../types';
 import { INITIAL_PROPERTIES } from '../constants';
@@ -39,16 +39,32 @@ export const propertyService = {
     }
   },
 
-  getAll: async (): Promise<Property[]> => {
-    try {
-      const { data: properties, error } = await supabase
-        .from('properties')
-        .select('*')
-        .order('created_at', { ascending: false });
+ getAll: async (): Promise<Property[]> => {
+  try {
+    const { data: properties, error } = await supabase
+      .from('properties')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      if (error || !properties) {
-        return propertyService._getLocal();
-      }
+    if (error || !properties) {
+      return USE_LOCAL_FALLBACK ? propertyService._getLocal() : [];
+    }
+
+    const propertyIds = properties.map(p => p.id);
+    const { data: images } = await supabase
+      .from('property_images')
+      .select('*')
+      .in('property_id', propertyIds);
+
+    const imagesData = (images as PropertyImage[]) || [];
+    return properties.map(p => ({
+      ...p,
+      images: imagesData.filter(img => img.property_id === p.id)
+    }));
+  } catch (err) {
+    return USE_LOCAL_FALLBACK ? propertyService._getLocal() : [];
+  }
+},
 
       const propertyIds = properties.map(p => p.id);
       const { data: images } = await supabase
@@ -119,25 +135,37 @@ export const propertyService = {
   },
 
   getById: async (id: string): Promise<Property | null> => {
-    try {
-      const { data: property, error } = await supabase.from('properties').select('*').eq('id', id).single();
-      if (error) throw error;
-      const { data: images } = await supabase.from('property_images').select('*').eq('property_id', id);
-      return { ...property, images: images || [] } as Property;
-    } catch {
-      return propertyService._getLocal().find(p => p.id === id) || null;
-    }
-  },
+  try {
+    const { data: property, error } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    const { data: images } = await supabase
+      .from('property_images')
+      .select('*')
+      .eq('property_id', id);
+    return { ...property, images: images || [] } as Property;
+  } catch {
+    if (!USE_LOCAL_FALLBACK) return null;
+    return propertyService._getLocal().find(p => p.id === id) || null;
+  }
+},
 
-  getByHost: async (hostId: string): Promise<Property[]> => {
-    try {
-      const { data, error } = await supabase.from('properties').select('*').eq('host_id', hostId);
-      if (error) throw error;
-      return data as Property[];
-    } catch {
-      return propertyService._getLocal().filter(p => p.host_id === hostId);
-    }
-  },
+getByHost: async (hostId: string): Promise<Property[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('host_id', hostId);
+    if (error) throw error;
+    return data as Property[];
+  } catch {
+    if (!USE_LOCAL_FALLBACK) return [];
+    return propertyService._getLocal().filter(p => p.host_id === hostId);
+  }
+},
 
   update: async (id: string, updates: Partial<Property>): Promise<boolean> => {
     try {
