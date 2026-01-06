@@ -276,4 +276,119 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
 
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-6">
-                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items侟
+                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-xl">
+                  📱
+                </div>
+                <div className="flex-1">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">
+                    Mobile
+                  </p>
+                  <p className="font-bold text-indigo-950">
+                    {user.phone_number || 'Non renseigné'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Formulaire de vérif téléphone */}
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="tel"
+                    value={phoneInput}
+                    onChange={e => setPhoneInput(e.target.value)}
+                    className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-indigo-700 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="05 50 12 34 56"
+                    maxLength={10}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendCode}
+                    disabled={isRequesting}
+                    className="px-4 py-2.5 text-[10px] font-black uppercase rounded-xl bg-indigo-600 text-white shadow hover:bg-indigo-700 active:scale-95 disabled:opacity-50"
+                  >
+                    {isRequesting ? 'ENVOI...' : 'ENVOYER CODE'}
+                  </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={code}
+                    onChange={e => setCode(e.target.value)}
+                    className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-indigo-700 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Code à 6 chiffres"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVerifyCode}
+                    disabled={isVerifying}
+                    className="px-4 py-2.5 text-[10px] font-black uppercase rounded-xl bg-emerald-500 text-white shadow hover:bg-emerald-600 active:scale-95 disabled:opacity-50"
+                  >
+                    {isVerifying ? 'VÉRIF...' : 'VALIDER CODE'}
+                  </button>
+                </div>
+
+                {debugCode && (
+                  <p className="text-[10px] text-amber-500 font-bold">
+                    Code TEST (simule un SMS) : <span className="font-mono">{debugCode}</span>
+                  </p>
+                )}
+
+                {phoneMsg && (
+                  <p className="text-[10px] text-emerald-600 font-bold uppercase">
+                    {phoneMsg}
+                  </p>
+                )}
+                {phoneError && (
+                  <p className="text-[10px] text-rose-500 font-bold uppercase">
+                    {phoneError}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions réseau */}
+        <div className="bg-indigo-950/20 backdrop-blur-xl p-10 rounded-[3.5rem] border border-white/10 shadow-xl flex flex-col justify-between">
+          <div>
+            <h3 className="text-[11px] font-black text-indigo-300 uppercase tracking-[0.4em] mb-6">
+              Actions Réseau
+            </h3>
+            <button
+              onClick={onSwitchRole}
+              className="w-full py-5 bg:white text-indigo-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px] shadow-xl hover:-translate-y-1 transition-all mb-4 flex items-center justify-center gap-3"
+            >
+              <span>SWITCH TO HOST MODE</span>
+              <span className="text-lg">🗝️</span>
+            </button>
+          </div>
+          <button
+            onClick={onLogout}
+            className="w-full py-5 border-2 border-rose-500/30 text-rose-500 rounded-[2rem] font-black uppercase tracking-widest text-[10px] hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-3"
+          >
+            <span>DÉCONNEXION SÉCURISÉE</span>
+            <span className="text-lg">🚪</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Security Info Panel */}
+      <div className="bg-white/5 border border-white/10 p-10 rounded-[3.5rem] text-center space-y-4">
+        <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.4em]">
+          Système de Protection LOCADZ
+        </p>
+        <p className="text-xs text:white/60 leading-relaxed max-w-2xl mx-auto italic">
+          "Vos données sont protégées par notre infrastructure Cloud. Seules les informations
+          nécessaires à la vérification légale sont traitées par nos modérateurs accrédités."
+        </p>
+      </div>
+
+      <div className="text-center opacity-30 pt-10">
+        <p className="text-[9px] font-black text-white uppercase tracking-[0.5em]">
+          LOCADZ Digital Identity System v3.0
+        </p>
+      </div>
+    </div>
+  );
+};
