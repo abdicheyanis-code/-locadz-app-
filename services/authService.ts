@@ -1,140 +1,217 @@
-
 import { supabase } from '../supabaseClient';
 import { UserProfile, UserRole } from '../types';
 
 const SESSION_KEY = 'locadz_session';
-const LOCAL_USERS_KEY = 'locadz_local_users';
-const pendingCodes = new Map<string, string>();
+
+/**
+ * Construit un avatar par défaut (DiceBear) à partir de l'email ou de l'id
+ */
+const buildAvatarUrl = (email: string | null, id: string) =>
+  `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email || id)}`;
+
+/**
+ * Mappe une ligne de la table public.users vers ton type UserProfile
+ */
+const mapRowToUserProfile = (row: any): UserProfile => {
+  const avatar_url =
+    row.avatar_url && row.avatar_url.trim().length > 0
+      ? row.avatar_url
+      : buildAvatarUrl(row.email, row.id);
+
+  return {
+    id: row.id,
+    full_name: row.full_name,
+    email: row.email,
+    phone_number: row.phone_number ?? '',
+    avatar_url,
+    role: row.role as UserRole,
+    is_verified: row.is_verified ?? false,
+    is_phone_verified: row.is_phone_verified ?? false,
+    id_verification_status: row.id_verification_status ?? 'NONE',
+    id_document_url: row.id_document_url ?? undefined,
+    payout_details:
+      row.payout_details ?? {
+        method: 'NONE',
+        accountName: '',
+        accountNumber: '',
+      },
+    created_at: row.created_at,
+  };
+};
+
+/**
+ * Récupère (ou crée) le profil pour l'utilisateur actuellement connecté (Supabase Auth)
+ */
+const fetchOrCreateCurrentUserProfile = async (): Promise<UserProfile | null> => {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) {
+    // Pas de session Supabase
+    localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+
+  const authUser = userData.user;
+
+  // Sécurité : si l'email n'est pas confirmé, on refuse la session
+  // (normalement Supabase ne crée pas de session tant que l'email n'est pas confirmé)
+  if (!authUser.email_confirmed_at) {
+    await supabase.auth.signOut();
+    localStorage.removeItem(SESSION_KEY);
+    throw new Error('EMAIL_NOT_CONFIRMED');
+  }
+
+  // Essaye de lire le profil dans public.users
+  const { data: profileRow, error: profileError } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', authUser.id)
+    .maybeSingle();
+
+  if (profileError && profileError.code !== 'PGRST116') {
+    // Autre erreur que "no rows"
+    throw profileError;
+  }
+
+  let row = profileRow;
+
+  if (!row) {
+    // Pas encore de profil -> on le crée à partir des metadata
+    const full_name =
+      (authUser.user_metadata as any)?.full_name || authUser.email || 'LOCADZ Member';
+    const phone_number = (authUser.user_metadata as any)?.phone_number || null;
+    const role = ((authUser.user_metadata as any)?.role as UserRole) || 'TRAVELER';
+    const avatar_url = buildAvatarUrl(authUser.email, authUser.id);
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('users')
+      .insert({
+        id: authUser.id,
+        full_name,
+        email: authUser.email,
+        phone_number,
+        role,
+        avatar_url,
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+    row = inserted;
+  }
+
+  const profile = mapRowToUserProfile(row);
+  localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
+  return profile;
+};
 
 export const authService = {
-  _getLocalUsers: (): UserProfile[] => {
-    const saved = localStorage.getItem(LOCAL_USERS_KEY);
-    return saved ? JSON.parse(saved) : [];
+  /**
+   * Inscription : email + mot de passe + nom + téléphone + rôle
+   * Supabase enverra un email de confirmation.
+   */
+  register: async (
+    fullName: string,
+    email: string,
+    phone: string,
+    role: UserRole,
+    password: string
+  ): Promise<{ error: string | null }> => {
+    const cleanEmail = email.toLowerCase().trim();
+
+    const { error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+          phone_number: phone,
+          role,
+        },
+      },
+    });
+
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
+      if (msg.includes('user already registered') || msg.includes('already exists')) {
+        return { error: 'EMAIL_EXISTS' };
+      }
+      return { error: error.message || 'UNKNOWN_ERROR' };
+    }
+
+    // Pas de session tant que l'email n'est pas confirmé -> on ne retourne pas de user
+    return { error: null };
   },
 
-  _saveLocalUser: (user: UserProfile) => {
-    const users = authService._getLocalUsers();
-    const index = users.findIndex(u => u.email === user.email);
-    if (index !== -1) users[index] = user;
-    else users.push(user);
-    localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
-  },
+  /**
+   * Connexion :
+   * - Appelé depuis AuthModal avec email + password -> vrai login
+   * - Appelé sans password (depuis App.tsx) -> rafraîchit la session à partir de Supabase
+   */
+  login: async (email: string, password?: string): Promise<UserProfile | null> => {
+    if (password) {
+      const cleanEmail = email.toLowerCase().trim();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
 
-  register: async (fullName: string, email: string, phone: string, role: UserRole): Promise<{ user: UserProfile | null; error: string | null }> => {
-    const newUser: UserProfile = {
-      id: crypto.randomUUID(),
-      full_name: fullName,
-      email: email.toLowerCase().trim(),
-      phone_number: phone,
-      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`,
-      role: role,
-      is_verified: false,
-      is_phone_verified: false,
-      id_verification_status: 'NONE',
-      created_at: new Date().toISOString(),
-      payout_details: { method: 'NONE', accountName: '', accountNumber: '' }
-    };
-
-    try {
-      const { data, error } = await supabase.from('users').insert([newUser]).select().single();
-      
       if (error) {
-        if (error.code === '23505') return { user: null, error: "EMAIL_EXISTS" };
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('email not confirmed')) {
+          throw new Error('EMAIL_NOT_CONFIRMED');
+        }
+        if (msg.includes('invalid login credentials') || error.status === 400) {
+          throw new Error('INVALID_CREDENTIALS');
+        }
         throw error;
       }
-
-      const code = Math.floor(1000 + Math.random() * 9000).toString();
-      pendingCodes.set(newUser.email, code);
-      console.log(`%c[LOCADZ SECURITY] Code pour ${newUser.email} : ${code}`, "color: #4f46e5; font-weight: bold; font-size: 16px;");
-      return { user: data as UserProfile, error: null };
-      
-    } catch (err: any) {
-      if (err.code === '23505') return { user: null, error: "EMAIL_EXISTS" };
-      
-      // Fallback local si Supabase est inaccessible (mais pas si l'email existe déjà)
-      authService._saveLocalUser(newUser);
-      const code = "1234";
-      pendingCodes.set(newUser.email, code);
-      return { user: newUser, error: null };
     }
+
+    // Que ce soit après un vrai login ou au rafraîchissement, on récupère le profil courant
+    const profile = await fetchOrCreateCurrentUserProfile();
+    return profile;
   },
 
-  login: async (email: string): Promise<UserProfile | null> => {
-    const cleanEmail = email.toLowerCase().trim();
-    try {
-      const { data, error } = await supabase.from('users').select('*').eq('email', cleanEmail).maybeSingle();
-      
-      if (error) throw error;
-
-      if (data) {
-        authService.setSession(data as UserProfile);
-        return data as UserProfile;
-      }
-      
-      const localUser = authService._getLocalUsers().find(u => u.email === cleanEmail);
-      if (localUser) {
-        authService.setSession(localUser);
-        return localUser;
-      }
-
-      return null;
-    } catch (err) {
-      const user = authService._getLocalUsers().find(u => u.email === cleanEmail);
-      if (user) authService.setSession(user);
-      return user || null;
-    }
+  /**
+   * Retourne la dernière session UserProfile stockée localement (si présente)
+   */
+  getSession: (): UserProfile | null => {
+    const data = localStorage.getItem(SESSION_KEY);
+    return data ? (JSON.parse(data) as UserProfile) : null;
   },
 
-  resendCode: (email: string) => {
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    pendingCodes.set(email.toLowerCase().trim(), code);
-    console.log(`%c[LOCADZ SECURITY] Nouveau Code : ${code}`, "color: #4f46e5; font-weight: bold; font-size: 16px;");
+  /**
+   * Utilisé si besoin pour forcer la resynchro depuis Supabase
+   */
+  refreshSession: async (): Promise<UserProfile | null> => {
+    return await fetchOrCreateCurrentUserProfile();
   },
 
-  verifyAccount: async (email: string, code: string): Promise<UserProfile | null> => {
-    const cleanEmail = email.toLowerCase().trim();
-    const storedCode = pendingCodes.get(cleanEmail);
-    
-    if (code === storedCode || code === '1234') {
-      try {
-        const { data, error } = await supabase.from('users').update({ is_verified: true }).eq('email', cleanEmail).select().single();
-        if (error) throw error;
-        authService.setSession(data as UserProfile);
-        return data as UserProfile;
-      } catch (e) {
-        const user = authService._getLocalUsers().find(u => u.email === cleanEmail);
-        if (user) {
-          user.is_verified = true;
-          authService._saveLocalUser(user);
-          authService.setSession(user);
-          return user;
-        }
-      }
+  /**
+   * Déconnecte côté Supabase + nettoie le localStorage
+   */
+  logout: async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem(SESSION_KEY);
+  },
+
+  /**
+   * Mise à jour du profil dans public.users
+   */
+  updateProfile: async (id: string, updates: Partial<UserProfile>) => {
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (data) {
+      const profile = mapRowToUserProfile(data);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
+      return profile;
     }
     return null;
   },
-
-  setSession: (user: UserProfile) => localStorage.setItem(SESSION_KEY, JSON.stringify(user)),
-  getSession: (): UserProfile | null => {
-    const data = localStorage.getItem(SESSION_KEY);
-    return data ? JSON.parse(data) : null;
-  },
-  logout: () => localStorage.removeItem(SESSION_KEY),
-  updateProfile: async (id: string, updates: any) => {
-    try {
-      const { data, error } = await supabase.from('users').update(updates).eq('id', id).select().single();
-      if (error) throw error;
-      if (data) authService.setSession(data as UserProfile);
-      return data as UserProfile;
-    } catch {
-      const user = authService.getSession();
-      if (user && user.id === id) {
-        const updated = { ...user, ...updates };
-        authService._saveLocalUser(updated);
-        authService.setSession(updated);
-        return updated;
-      }
-      return null;
-    }
-  }
 };
