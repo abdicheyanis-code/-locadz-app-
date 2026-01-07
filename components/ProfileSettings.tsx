@@ -216,16 +216,11 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                     ? '✓ IDENTITÉ VÉRIFIÉE'
                     : '○ IDENTITÉ NON VÉRIFIÉE'}
                 </span>
-              </div>
-              <div
-                className={`px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-2 ${
-                  user.is_phone_verified
-                    ? 'bg-indigo-100 text-indigo-600 border border-indigo-200'
-                    : 'bg-gray-100 text-gray-400 border border-gray-200'
-                }`}
-              >
-                <span>{user.is_phone_verified ? '✓ MOBILE VÉRIFIÉ' : '○ MOBILE NON VÉRIFIÉ'}</span>
-              </div>
+           </div>
+              <div className="px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-2 bg-gray-100 text-gray-400 border border-gray-200">
+  <span>○ MOBILE NON VÉRIFIÉ</span>
+</div>
+            
             </div>
           </div>
         </div>
