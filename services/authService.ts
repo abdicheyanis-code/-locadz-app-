@@ -235,17 +235,15 @@ export const authService = {
 
   /**
    * Envoie un email de réinitialisation de mot de passe
-   * (UI de "nouveau mot de passe" à implémenter plus tard)
    */
   forgotPassword: async (email: string): Promise<void> => {
     const cleanEmail = email.toLowerCase().trim();
 
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-      redirectTo: 'https://locadz-app.vercel.app',
+      redirectTo: 'https://locadz-app.vercel.app/reset-password',
     });
 
     if (error) {
       throw error;
     }
   },
-};
