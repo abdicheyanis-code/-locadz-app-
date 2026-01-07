@@ -1,90 +1,81 @@
+# 🏝️ LOCA DZ – Plateforme de locations haut de gamme en Algérie
 
-# 🚀 Script SQL pour Supabase
+LOCADZ est une web‑app moderne de type “Airbnb premium” pour le marché algérien.  
+Les voyageurs peuvent explorer des propriétés d’exception (Sahara, bord de mer, cabanes, etc.),  
+et les hôtes peuvent gérer leurs annonces, réservations et revenus.
 
-Copie tout ce bloc et colle-le dans le **SQL Editor** de ton projet Supabase, puis clique sur **RUN** :
+---
 
-```sql
--- 1. Table des Utilisateurs
-CREATE TABLE public.users (
-    id uuid PRIMARY KEY,
-    full_name text,
-    email text UNIQUE,
-    phone_number text,
-    avatar_url text,
-    role text DEFAULT 'TRAVELER',
-    id_verification_status text DEFAULT 'NONE',
-    is_verified boolean DEFAULT false,
-    is_phone_verified boolean DEFAULT false,
-    id_document_url text,
-    payout_details jsonb DEFAULT '{"method": "NONE", "accountName": "", "accountNumber": ""}'::jsonb,
-    created_at timestamptz DEFAULT now()
-);
+## 🌐 Démo en ligne
 
--- 2. Table des Propriétés
-CREATE TABLE public.properties (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    host_id uuid REFERENCES public.users(id),
-    title text,
-    description text,
-    location text,
-    price numeric,
-    category text,
-    rating numeric DEFAULT 5.0,
-    reviews_count int DEFAULT 0,
-    latitude numeric,
-    longitude numeric,
-    created_at timestamptz DEFAULT now()
-);
+Production : https://locadz-app.vercel.app
 
--- 3. Table des Images
-CREATE TABLE public.property_images (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    property_id uuid REFERENCES public.properties(id) ON DELETE CASCADE,
-    image_url text,
-    created_at timestamptz DEFAULT now()
-);
+---
 
--- 4. Table des Réservations
-CREATE TABLE public.bookings (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    property_id uuid REFERENCES public.properties(id),
-    traveler_id uuid REFERENCES public.users(id),
-    start_date date,
-    end_date date,
-    total_price numeric,
-    commission_fee numeric,
-    status text DEFAULT 'PENDING_APPROVAL',
-    payment_method text,
-    payment_id text,
-    receipt_url text,
-    created_at timestamptz DEFAULT now()
-);
+## 🧱 Stack technique
 
--- 5. Table des Avis
-CREATE TABLE public.reviews (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    property_id uuid REFERENCES public.properties(id),
-    user_id uuid REFERENCES public.users(id),
-    user_name text,
-    user_avatar text,
-    rating int,
-    comment text,
-    created_at timestamptz DEFAULT now()
-);
+- **Frontend** : [Vite](https://vitejs.dev/) + **React** + **TypeScript**
+- **Backend as a Service** : [Supabase](https://supabase.com/)
+  - Auth (email + mot de passe, email de confirmation obligatoire)
+  - Base de données PostgreSQL (tables `users`, `properties`, `bookings`, etc.)
+  - Storage (images de propriétés)
+- **Hébergement** : [Vercel](https://vercel.com/)
+- **IA Concierge** : [Google AI Studio / Gemini](https://ai.google.dev/)
+- **Styling** : Tailwind‑like utility classes + design custom
 
--- 6. Table des Favoris
-CREATE TABLE public.favorites (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    traveler_id uuid REFERENCES public.users(id),
-    property_id uuid REFERENCES public.properties(id),
-    created_at timestamptz DEFAULT now()
-);
+---
 
--- 7. Désactiver RLS (Indispensable pour que ça marche tout de suite)
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.properties DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.property_images DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.bookings DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reviews DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.favorites DISABLE ROW LEVEL SECURITY;
-```
+## ⚙️ Fonctionnalités principales
+
+### Côté voyageur
+
+- Authentification par email + mot de passe (Supabase Auth)
+- Email de confirmation obligatoire avant la première connexion
+- Sélection de propriété par catégories (trending, sahara, beachfront, etc.)
+- Système de favoris
+- Gestion de profil (nom, email, téléphone, rôle)
+- Interface optimisée desktop & mobile
+
+### Côté hôte
+
+- Rôle `HOST` / `ADMIN` géré dans la table `users`
+- Tableau de bord hôte (HOST_DASH) pour gérer ses propriétés
+- Propriétés stockées dans Supabase (`properties` + `property_images`)
+
+### Sécurité
+
+- **Row Level Security (RLS)** activée sur les principales tables :
+  - `properties` : tout le monde peut lire, seul `host_id = auth.uid()` peut modifier
+  - `favorites` : chaque utilisateur ne voit/gère que ses propres favoris (`traveler_id = auth.uid()`)
+  - `bookings` : idem pour les réservations (`traveler_id = auth.uid()`)
+  - `reviews` : tout le monde lit, chaque user ne gère que ses avis (`user_id = auth.uid()`)
+- Authentification Supabase avec clé `anon` uniquement (jamais `service_role` côté front)
+
+### IA (Concierge LOCADZ)
+
+- Intégration Gemini via `@google/genai`
+- Analyse de texte pour la recherche intelligente de catégories
+- Assistant contextuel (conseils de voyage, suggestions) activé si `VITE_GEMINI_API_KEY` est fourni
+
+---
+
+## 🚀 Lancer le projet en local
+
+Prérequis :
+
+- Node.js 18+
+- Un projet Supabase configuré (URL + anon key)
+- (Optionnel) une clé API Gemini
+
+Installation :
+
+```bash
+# Cloner le repo
+git clone https://github.com/abdicheyanis-code/-locadz-app-.git
+cd -locadz-app-
+
+# Installer les dépendances
+npm install
+
+# Lancer le serveur de dev
+npm run dev
