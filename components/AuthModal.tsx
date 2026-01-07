@@ -31,12 +31,16 @@ const AUTH_TRANSLATIONS: Record<AppLanguage, any> = {
     invalidPhone: "Numéro invalide. Format : 05, 06 ou 07 + 8 chiffres.",
     invalidEmail: "Format d'email incorrect.",
     noAccount: "Compte introuvable. Veuillez d'abord vous inscrire.",
-    emailExists: "Cet email est déjà enregistré.",
+    emailExists: "Cet email est déjà utilisé.",
+    phoneExists: "Ce numéro est déjà utilisé.",
     loginInstead: "Se connecter maintenant",
     invalidCredentials: "Email ou mot de passe incorrect.",
     emailNotConfirmed: "Email non confirmé. Vérifiez votre boîte mail et cliquez sur le lien.",
     registerInfo: "Email de confirmation envoyé. Cliquez sur le lien pour activer votre compte, puis connectez-vous.",
-    cloudError: "Erreur de connexion au Cloud Supabase."
+    cloudError: "Erreur de connexion au Cloud Supabase.",
+    forgotPassword: "Mot de passe oublié ?",
+    forgotSuccess: "Email de réinitialisation envoyé. Vérifie ta boîte mail.",
+    forgotError: "Erreur lors de l’envoi de l’email de réinitialisation."
   },
   en: {
     portal: "LOCADZ Member Portal",
@@ -58,12 +62,16 @@ const AUTH_TRANSLATIONS: Record<AppLanguage, any> = {
     invalidPhone: "Invalid phone. Format: 05, 06 or 07 + 8 digits.",
     invalidEmail: "Incorrect email format.",
     noAccount: "Account not found. Please register first.",
-    emailExists: "This email is already registered.",
+    emailExists: "This email is already used.",
+    phoneExists: "This phone number is already used.",
     loginInstead: "Login instead",
     invalidCredentials: "Incorrect email or password.",
     emailNotConfirmed: "Email not confirmed. Check your inbox and click the link.",
     registerInfo: "We sent you a confirmation email. Click the link to activate your account, then log in.",
-    cloudError: "Cloud Supabase connection error."
+    cloudError: "Cloud Supabase connection error.",
+    forgotPassword: "Forgot password ?",
+    forgotSuccess: "Password reset email sent. Check your inbox.",
+    forgotError: "Error while sending reset email."
   },
   ar: {
     portal: "بوابة أعضاء لوكادز",
@@ -85,12 +93,16 @@ const AUTH_TRANSLATIONS: Record<AppLanguage, any> = {
     invalidPhone: "رقم غير صحيح. يبدأ بـ 05، 06 أو 07 متبوعًا بـ 8 أرقام.",
     invalidEmail: "صيغة البريد الإلكتروني غير صحيحة.",
     noAccount: "الحساب غير موجود. يرجى التسجيل أولاً.",
-    emailExists: "هذا البريد الإلكتروني مسجل بالفعل.",
+    emailExists: "هذا البريد الإلكتروني مستعمل مسبقاً.",
+    phoneExists: "هذا الرقم مستعمل مسبقاً.",
     loginInstead: "سجل دخولك الآن",
     invalidCredentials: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
     emailNotConfirmed: "البريد غير مؤكد. تحقق من بريدك واضغط على الرابط.",
     registerInfo: "تم إرسال بريد تأكيد. اضغط على الرابط لتفعيل الحساب ثم قم بتسجيل الدخول.",
-    cloudError: "خطأ في الاتصال بسحابة Supabase."
+    cloudError: "خطأ في الاتصال بسحابة Supabase.",
+    forgotPassword: "نسيت كلمة المرور ؟",
+    forgotSuccess: "تم إرسال بريد لإعادة تعيين كلمة المرور. تحقق من بريدك.",
+    forgotError: "خطأ أثناء إرسال بريد إعادة التعيين."
   }
 };
 
@@ -184,6 +196,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         );
         if (regError === 'EMAIL_EXISTS') {
           setError(t.emailExists);
+        } else if (regError === 'PHONE_EXISTS') {
+          setError(t.phoneExists);
         } else if (regError) {
           setError(regError);
         } else {
@@ -191,6 +205,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setIsLogin(true);
         }
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError('');
+    setInfo('');
+
+    if (!email || !validateEmail(email)) {
+      setError(t.invalidEmail);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await authService.forgotPassword(email);
+      setInfo(t.forgotSuccess);
+    } catch (err) {
+      console.error(err);
+      setError(t.forgotError);
     } finally {
       setIsLoading(false);
     }
@@ -204,7 +239,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       dir={isRTL ? 'rtl' : 'ltr'}
     >
       <div className="w-full max-w-md h-full md:h-auto">
-        {/* Sur mobile : plein écran ; sur desktop : carte centrée */}
         <div className="relative bg-white h-full md:h-auto md:rounded-[3rem] rounded-2xl shadow-[0_40px_100px_rgba(0,0,0,0.6)] border border-white/60 overflow-y-auto max-h-[100vh] md:max-h-[85vh]">
           {/* Bouton fermer */}
           <button
@@ -216,7 +250,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </svg>
           </button>
 
-          {/* Contenu */}
           <div className="px-6 md:px-8 pt-10 md:pt-12 pb-6 md:pb-8">
             {/* Header */}
             <div className="text-center mb-6 md:mb-8">
@@ -308,6 +341,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   minLength={6}
                 />
               </div>
+
+              {/* Lien "mot de passe oublié ?" uniquement en mode connexion */}
+              {isLogin && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="text-[9px] font-black text-indigo-400 underline uppercase tracking-widest mt-1"
+                  >
+                    {t.forgotPassword}
+                  </button>
+                </div>
+              )}
 
               {!isLogin && (
                 <>
