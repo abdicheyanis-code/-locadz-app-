@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserRole, UserProfile, AppLanguage } from '../types';
 import { authService } from '../services/authService';
 import { LocadzLogo } from './Navbar';
+import { useNotification } from './NotificationProvider';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -12,98 +13,107 @@ interface AuthModalProps {
 
 const AUTH_TRANSLATIONS: Record<AppLanguage, any> = {
   fr: {
-    portal: "Portail Membre LOCADZ",
-    req: "Accès sécurisé · Cloud Supabase",
-    member: "Connexion",
-    join: "Nouvelle adhésion",
-    name: "Nom & Prénom",
-    email: "Email Professionnel",
-    phone: "Numéro Mobile (Algérie)",
-    phoneHint: "Ex: 0550 12 34 56",
-    role: "Rôle Réseau",
-    traveler: "Voyageur",
-    host: "Hôte",
-    password: "Mot de passe",
-    passwordPlaceholder: "Au moins 6 caractères",
-    passwordRequired: "Mot de passe requis (au moins 6 caractères).",
-    access: "SE CONNECTER",
-    joinBtn: "CRÉER MON COMPTE",
-    invalidPhone: "Numéro invalide. Format : 05, 06 ou 07 + 8 chiffres.",
+    portal: 'Portail Membre LOCADZ',
+    req: 'Accès sécurisé · Cloud Supabase',
+    member: 'Connexion',
+    join: 'Nouvelle adhésion',
+    name: 'Nom & Prénom',
+    email: 'Email Professionnel',
+    phone: 'Numéro Mobile (Algérie)',
+    phoneHint: 'Ex: 0550 12 34 56',
+    role: 'Rôle Réseau',
+    traveler: 'Voyageur',
+    host: 'Hôte',
+    password: 'Mot de passe',
+    passwordPlaceholder: 'Au moins 6 caractères',
+    passwordRequired: 'Mot de passe requis (au moins 6 caractères).',
+    access: 'SE CONNECTER',
+    joinBtn: 'CRÉER MON COMPTE',
+    invalidPhone: 'Numéro invalide. Format : 05, 06 ou 07 + 8 chiffres.',
     invalidEmail: "Format d'email incorrect.",
     noAccount: "Compte introuvable. Veuillez d'abord vous inscrire.",
-    emailExists: "Cet email est déjà utilisé.",
-    phoneExists: "Ce numéro est déjà utilisé.",
-    loginInstead: "Se connecter maintenant",
-    invalidCredentials: "Email ou mot de passe incorrect.",
-    emailNotConfirmed: "Email non confirmé. Vérifiez votre boîte mail et cliquez sur le lien.",
-    registerInfo: "Email de confirmation envoyé. Cliquez sur le lien pour activer votre compte, puis connectez-vous.",
-    cloudError: "Erreur de connexion au Cloud Supabase.",
-    forgotPassword: "Mot de passe oublié ?",
-    forgotSuccess: "Email de réinitialisation envoyé. Vérifie ta boîte mail.",
-    forgotError: "Erreur lors de l’envoi de l’email de réinitialisation."
+    emailExists: 'Cet email est déjà utilisé.',
+    phoneExists: 'Ce numéro est déjà utilisé.',
+    loginInstead: 'Se connecter maintenant',
+    invalidCredentials: 'Email ou mot de passe incorrect.',
+    emailNotConfirmed:
+      'Email non confirmé. Vérifiez votre boîte mail et cliquez sur le lien.',
+    registerInfo:
+      'Email de confirmation envoyé. Cliquez sur le lien pour activer votre compte, puis connectez-vous.',
+    cloudError: 'Erreur de connexion au Cloud Supabase.',
+    forgotPassword: 'Mot de passe oublié ?',
+    forgotSuccess: 'Email de réinitialisation envoyé. Vérifie ta boîte mail.',
+    forgotError: "Erreur lors de l’envoi de l’email de réinitialisation.",
+    loginSuccess: 'Connexion réussie.',
   },
   en: {
-    portal: "LOCADZ Member Portal",
-    req: "Secure Access · Supabase Cloud",
-    member: "Sign In",
-    join: "Create Account",
-    name: "Full Name",
-    email: "Professional Email",
-    phone: "Mobile Number (Algeria)",
-    phoneHint: "Ex: 0550 12 34 56",
-    role: "Network Role",
-    traveler: "Traveler",
-    host: "Host",
-    password: "Password",
-    passwordPlaceholder: "At least 6 characters",
-    passwordRequired: "Password required (minimum 6 characters).",
-    access: "SIGN IN",
-    joinBtn: "CREATE ACCOUNT",
-    invalidPhone: "Invalid phone. Format: 05, 06 or 07 + 8 digits.",
-    invalidEmail: "Incorrect email format.",
-    noAccount: "Account not found. Please register first.",
-    emailExists: "This email is already used.",
-    phoneExists: "This phone number is already used.",
-    loginInstead: "Login instead",
-    invalidCredentials: "Incorrect email or password.",
-    emailNotConfirmed: "Email not confirmed. Check your inbox and click the link.",
-    registerInfo: "We sent you a confirmation email. Click the link to activate your account, then log in.",
-    cloudError: "Cloud Supabase connection error.",
-    forgotPassword: "Forgot password ?",
-    forgotSuccess: "Password reset email sent. Check your inbox.",
-    forgotError: "Error while sending reset email."
+    portal: 'LOCADZ Member Portal',
+    req: 'Secure Access · Supabase Cloud',
+    member: 'Sign In',
+    join: 'Create Account',
+    name: 'Full Name',
+    email: 'Professional Email',
+    phone: 'Mobile Number (Algeria)',
+    phoneHint: 'Ex: 0550 12 34 56',
+    role: 'Network Role',
+    traveler: 'Traveler',
+    host: 'Host',
+    password: 'Password',
+    passwordPlaceholder: 'At least 6 characters',
+    passwordRequired: 'Password required (minimum 6 characters).',
+    access: 'SIGN IN',
+    joinBtn: 'CREATE ACCOUNT',
+    invalidPhone: 'Invalid phone. Format: 05, 06 or 07 + 8 digits.',
+    invalidEmail: 'Incorrect email format.',
+    noAccount: 'Account not found. Please register first.',
+    emailExists: 'This email is already used.',
+    phoneExists: 'This phone number is already used.',
+    loginInstead: 'Login instead',
+    invalidCredentials: 'Incorrect email or password.',
+    emailNotConfirmed:
+      'Email not confirmed. Check your inbox and click the link.',
+    registerInfo:
+      'We sent you a confirmation email. Click the link to activate your account, then log in.',
+    cloudError: 'Cloud Supabase connection error.',
+    forgotPassword: 'Forgot password ?',
+    forgotSuccess: 'Password reset email sent. Check your inbox.',
+    forgotError: 'Error while sending reset email.',
+    loginSuccess: 'Login successful.',
   },
   ar: {
-    portal: "بوابة أعضاء لوكادز",
-    req: "دخول آمن · سحابة Supabase",
-    member: "تسجيل الدخول",
-    join: "حساب جديد",
-    name: "الاسم و اللقب",
-    email: "البريد الإلكتروني",
-    phone: "رقم الهاتف (الجزائر)",
-    phoneHint: "مثال: 0550 12 34 56",
-    role: "الدور في الشبكة",
-    traveler: "مسافر",
-    host: "مضيف",
-    password: "كلمة المرور",
-    passwordPlaceholder: "6 أحرف على الأقل",
-    passwordRequired: "كلمة المرور مطلوبة (6 أحرف على الأقل).",
-    access: "دخول",
-    joinBtn: "إنشاء حساب",
-    invalidPhone: "رقم غير صحيح. يبدأ بـ 05، 06 أو 07 متبوعًا بـ 8 أرقام.",
-    invalidEmail: "صيغة البريد الإلكتروني غير صحيحة.",
-    noAccount: "الحساب غير موجود. يرجى التسجيل أولاً.",
-    emailExists: "هذا البريد الإلكتروني مستعمل مسبقاً.",
-    phoneExists: "هذا الرقم مستعمل مسبقاً.",
-    loginInstead: "سجل دخولك الآن",
-    invalidCredentials: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
-    emailNotConfirmed: "البريد غير مؤكد. تحقق من بريدك واضغط على الرابط.",
-    registerInfo: "تم إرسال بريد تأكيد. اضغط على الرابط لتفعيل الحساب ثم قم بتسجيل الدخول.",
-    cloudError: "خطأ في الاتصال بسحابة Supabase.",
-    forgotPassword: "نسيت كلمة المرور ؟",
-    forgotSuccess: "تم إرسال بريد لإعادة تعيين كلمة المرور. تحقق من بريدك.",
-    forgotError: "خطأ أثناء إرسال بريد إعادة التعيين."
-  }
+    portal: 'بوابة أعضاء لوكادز',
+    req: 'دخول آمن · سحابة Supabase',
+    member: 'تسجيل الدخول',
+    join: 'حساب جديد',
+    name: 'الاسم و اللقب',
+    email: 'البريد الإلكتروني',
+    phone: 'رقم الهاتف (الجزائر)',
+    phoneHint: 'مثال: 0550 12 34 56',
+    role: 'الدور في الشبكة',
+    traveler: 'مسافر',
+    host: 'مضيف',
+    password: 'كلمة المرور',
+    passwordPlaceholder: '6 أحرف على الأقل',
+    passwordRequired: 'كلمة المرور مطلوبة (6 أحرف على الأقل).',
+    access: 'دخول',
+    joinBtn: 'إنشاء حساب',
+    invalidPhone: 'رقم غير صحيح. يبدأ بـ 05، 06 أو 07 متبوعًا بـ 8 أرقام.',
+    invalidEmail: 'صيغة البريد الإلكتروني غير صحيحة.',
+    noAccount: 'الحساب غير موجود. يرجى التسجيل أولاً.',
+    emailExists: 'هذا البريد الإلكتروني مستعمل مسبقاً.',
+    phoneExists: 'هذا الرقم مستعمل مسبقاً.',
+    loginInstead: 'سجل دخولك الآن',
+    invalidCredentials: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+    emailNotConfirmed: 'البريد غير مؤكد. تحقق من بريدك واضغط على الرابط.',
+    registerInfo:
+      'تم إرسال بريد تأكيد. اضغط على الرابط لتفعيل الحساب ثم قم بتسجيل الدخول.',
+    cloudError: 'خطأ في الاتصال بسحابة Supabase.',
+    forgotPassword: 'نسيت كلمة المرور ؟',
+    forgotSuccess:
+      'تم إرسال بريد لإعادة تعيين كلمة المرور. تحقق من بريدك.',
+    forgotError: 'خطأ أثناء إرسال بريد إعادة التعيين.',
+    loginSuccess: 'تم تسجيل الدخول بنجاح.',
+  },
 };
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -124,6 +134,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const t = AUTH_TRANSLATIONS[language];
   const isRTL = language === 'ar';
+  const { notify } = useNotification();
 
   useEffect(() => {
     if (!isOpen) {
@@ -152,16 +163,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     if (!validateEmail(email)) {
       setError(t.invalidEmail);
+      notify({ type: 'error', message: t.invalidEmail });
       return;
     }
 
     if (!password || password.length < 6) {
       setError(t.passwordRequired);
+      notify({ type: 'error', message: t.passwordRequired });
       return;
     }
 
     if (!isLogin && !validatePhone(phone)) {
       setError(t.invalidPhone);
+      notify({ type: 'error', message: t.invalidPhone });
       return;
     }
 
@@ -172,18 +186,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         try {
           const user = await authService.login(email, password);
           if (user) {
+            notify({ type: 'success', message: t.loginSuccess });
             onSuccess(user);
             onClose();
           } else {
             setError(t.noAccount);
+            notify({ type: 'error', message: t.noAccount });
           }
         } catch (err: any) {
           if (err.message === 'EMAIL_NOT_CONFIRMED') {
             setError(t.emailNotConfirmed);
+            notify({ type: 'error', message: t.emailNotConfirmed });
           } else if (err.message === 'INVALID_CREDENTIALS') {
             setError(t.invalidCredentials);
+            notify({ type: 'error', message: t.invalidCredentials });
           } else {
             setError(t.cloudError);
+            notify({ type: 'error', message: t.cloudError });
           }
         }
       } else {
@@ -196,12 +215,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         );
         if (regError === 'EMAIL_EXISTS') {
           setError(t.emailExists);
+          notify({ type: 'error', message: t.emailExists });
         } else if (regError === 'PHONE_EXISTS') {
           setError(t.phoneExists);
+          notify({ type: 'error', message: t.phoneExists });
         } else if (regError) {
           setError(regError);
+          notify({ type: 'error', message: regError });
         } else {
           setInfo(t.registerInfo);
+          notify({ type: 'success', message: t.registerInfo });
           setIsLogin(true);
         }
       }
@@ -216,6 +239,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     if (!email || !validateEmail(email)) {
       setError(t.invalidEmail);
+      notify({ type: 'error', message: t.invalidEmail });
       return;
     }
 
@@ -223,9 +247,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setIsLoading(true);
       await authService.forgotPassword(email);
       setInfo(t.forgotSuccess);
+      notify({ type: 'success', message: t.forgotSuccess });
     } catch (err) {
       console.error(err);
       setError(t.forgotError);
+      notify({ type: 'error', message: t.forgotError });
     } finally {
       setIsLoading(false);
     }
@@ -243,10 +269,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {/* Bouton fermer */}
           <button
             onClick={onClose}
-            className={`absolute top-4 md:top-6 ${isRTL ? 'left-4 md:left-6' : 'right-4 md:right-6'} text-gray-400 hover:text-indigo-600 transition-all active:scale-90 z-20`}
+            className={`absolute top-4 md:top-6 ${
+              isRTL ? 'left-4 md:left-6' : 'right-4 md:right-6'
+            } text-gray-400 hover:text-indigo-600 transition-all active:scale-90 z-20`}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="3"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
 
