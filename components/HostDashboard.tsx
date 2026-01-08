@@ -215,9 +215,15 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({ hostId, hostName, 
                     </div>
                   </div>
                   <div className="flex justify-between items-center pt-2">
-                    <p className="text-[9px] font-black text-indigo-300 uppercase">Total Net</p>
-                    <p className="text-lg font-black text-indigo-950">{formatCurrency(req.total_price - req.commission_fee)}</p>
-                  </div>
+  <p className="text-[9px] font-black text-indigo-300 uppercase">Net hôte</p>
+  <p className="text-lg font-black text-indigo-950">
+    {formatCurrency(
+      req.payout_host != null
+        ? Number(req.payout_host) // nouveau modèle
+        : Number(req.total_price) - Number(req.commission_fee || 0) // fallback ancien
+    )}
+  </p>
+</div>
                 </div>
                 <div className="flex gap-3 mt-8">
                   <button 
