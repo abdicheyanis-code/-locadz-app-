@@ -1,19 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { adminService } from '../services/adminService';
 import { authService } from '../services/authService';
+import { paymentService } from '../services/paymentService';
 import { formatCurrency } from '../services/stripeService';
-import { Booking, UserProfile } from '../types';
+import { Booking, UserProfile, PaymentProof } from '../types';
 import { useNotification } from './NotificationProvider';
 
+type AdminTab = 'STATS' | 'USERS' | 'VERIFICATIONS' | 'PAYMENTS';
+
 export const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'STATS' | 'USERS' | 'VERIFICATIONS'>('STATS');
+  const [activeTab, setActiveTab] = useState<AdminTab>('STATS');
   const [stats, setStats] = useState({ totalVolume: 0, totalCommission: 0, count: 0 });
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
+  const [paymentProofs, setPaymentProofs] = useState<PaymentProof[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [unauthorized, setUnauthorized] = useState(false);
+  const [reviewingProofId, setReviewingProofId] = useState<string | null>(null);
 
   const { notify } = useNotification();
 
@@ -32,10 +37,11 @@ export const AdminDashboard: React.FC = () => {
     else setIsRefreshing(true);
 
     try {
-      const [s, u, p] = await Promise.all([
+      const [s, u, p, proofs] = await Promise.all([
         adminService.getPlatformStats(),
         adminService.getAllUsers(),
         adminService.getPendingVerifications(),
+        paymentService.getPendingProofsForAdmin(),
       ]);
 
       if ((s as any).error) {
@@ -49,6 +55,7 @@ export const AdminDashboard: React.FC = () => {
         setBookings((s as any).bookings || []);
         setAllUsers(u);
         setPendingUsers(p);
+        setPaymentProofs(proofs);
 
         if (silent) {
           notify({ type: 'success', message: 'Données admin rafraîchies.' });
@@ -94,6 +101,43 @@ export const AdminDashboard: React.FC = () => {
       notify({
         type: 'error',
         message: "Impossible de mettre à jour le rôle de l'utilisateur.",
+      });
+    }
+  };
+
+  const handleReviewProof = async (proof: PaymentProof, approve: boolean) => {
+    setReviewingProofId(proof.id);
+
+    let rejectionReason: string | undefined;
+    if (!approve) {
+      const input = window.prompt('Raison du refus ? (optionnel)');
+      rejectionReason = input || undefined;
+    }
+
+    const { success, error } = await paymentService.reviewPaymentProof({
+      proofId: proof.id,
+      approve,
+      rejectionReason,
+    });
+
+    setReviewingProofId(null);
+
+    if (success) {
+      notify({
+        type: 'success',
+        message: approve
+          ? 'Preuve de paiement validée. Réservation marquée comme PAYÉE.'
+          : 'Preuve de paiement rejetée.',
+      });
+      loadData(true);
+    } else {
+      console.error('reviewPaymentProof error:', error);
+      notify({
+        type: 'error',
+        message:
+          error === 'UNAUTHORIZED'
+            ? "Vous n'êtes pas autorisé à valider ces paiements."
+            : "Erreur lors de la revue de la preuve de paiement.",
       });
     }
   };
@@ -147,15 +191,15 @@ export const AdminDashboard: React.FC = () => {
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth="3"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 8.003 0 01-15.357-2m15.357 2H15"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
           </svg>
         </button>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex bg-white/5 backdrop-blur-3xl p-2 rounded-[2.5rem] border border-white/10 max-w-2xl mx-auto">
-        {(['STATS', 'VERIFICATIONS', 'USERS'] as const).map(tab => (
+      <div className="flex bg-white/5 backdrop-blur-3xl p-2 rounded-[2.5rem] border border-white/10 max-w-3xl mx-auto">
+        {(['STATS', 'VERIFICATIONS', 'USERS', 'PAYMENTS'] as AdminTab[]).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -169,15 +213,20 @@ export const AdminDashboard: React.FC = () => {
               ? '📊 Performances'
               : tab === 'USERS'
               ? '👥 Membres'
-              : `🛂 Alertes (${pendingUsers.length})`}
+              : tab === 'VERIFICATIONS'
+              ? `🛂 Alertes (${pendingUsers.length})`
+              : `💸 Paiements (${paymentProofs.length})`}
           </button>
         ))}
       </div>
 
+      {/* STATS */}
       {activeTab === 'STATS' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="bg-indigo-600 p-10 rounded-[4rem] text-white shadow-2xl relative overflow-hidden">
-            <p className="text-[10px] font-black uppercase opacity-60 mb-2">Profit Net</p>
+            <p className="text-[10px] font-black uppercase opacity-60 mb-2">
+              Profit Net
+            </p>
             <h2 className="text-5xl font-black italic">
               {formatCurrency(stats.totalCommission)}
             </h2>
@@ -200,6 +249,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* VERIFICATIONS */}
       {activeTab === 'VERIFICATIONS' && (
         <div className="bg-white rounded-[4rem] p-12 shadow-2xl border border-indigo-50 animate-in slide-in-from-right duration-500">
           <h3 className="text-3xl font-black italic text-indigo-950 mb-10">
@@ -244,6 +294,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* USERS */}
       {activeTab === 'USERS' && (
         <div className="bg-white/5 border border-white/10 rounded-[4rem] p-12 overflow-hidden animate-in slide-in-from-left duration-500">
           <h3 className="text-3xl font-black italic text-white mb-10">
@@ -267,7 +318,7 @@ export const AdminDashboard: React.FC = () => {
                       <div className="flex items-center gap-4">
                         <img src={u.avatar_url} className="w-10 h-10 rounded-xl" alt="" />
                         <div>
-                          <p className="text-sm font-bold text:white">{u.full_name}</p>
+                          <p className="text-sm font-bold text-white">{u.full_name}</p>
                           <p className="text-[10px] text-white/40">{u.email}</p>
                         </div>
                       </div>
@@ -338,6 +389,104 @@ export const AdminDashboard: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* PAYMENTS */}
+      {activeTab === 'PAYMENTS' && (
+        <div className="bg-white rounded-[4rem] p-12 shadow-2xl border border-indigo-50 animate-in slide-in-from-right duration-500">
+          <h3 className="text-3xl font-black italic text-indigo-950 mb-2">
+            Preuves de paiement en attente
+          </h3>
+          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em] mb-8">
+            Validation manuelle des virements clients
+          </p>
+
+          {paymentProofs.length === 0 ? (
+            <p className="text-center py-20 text-indigo-950/20 italic font-black uppercase text-sm">
+              Aucune preuve en attente
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {paymentProofs.map(proof => (
+                <div
+                  key={proof.id}
+                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-indigo-50/60 rounded-[2.5rem] border border-indigo-100"
+                >
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.3em]">
+                        {proof.id}
+                      </span>
+                      <span className="text-[9px] font-black text-gray-400 uppercase">
+                        {new Date(proof.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-4 items-center">
+                      <div>
+                        <p className="text-[8px] font-black text-gray-400 uppercase">
+                          Montant payé
+                        </p>
+                        <p className="text-xl font-black text-indigo-950">
+                          {formatCurrency(proof.amount)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-black text-gray-400 uppercase">
+                          Méthode
+                        </p>
+                        <p className="text-xs font-black text-indigo-700 flex items-center gap-1">
+                          {proof.payment_method === 'BARIDIMOB'
+                            ? '📲 BaridiMob'
+                            : proof.payment_method === 'RIB'
+                            ? '🏦 Virement banque'
+                            : '🤝 À l’arrivée'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-black text-gray-400 uppercase">
+                          Réservation
+                        </p>
+                        <p className="text-xs font-mono text-gray-600">
+                          {proof.booking_id}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col md:items-end gap-3">
+                    <a
+                      href={proof.proof_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-200 text-indigo-600 hover:bg-indigo-50 flex items-center gap-2"
+                    >
+                      Voir la preuve ↗
+                    </a>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleReviewProof(proof, false)}
+                        disabled={reviewingProofId === proof.id}
+                        className="px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest border-2 border-rose-200 text-rose-500 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        Refuser
+                      </button>
+                      <button
+                        onClick={() => handleReviewProof(proof, true)}
+                        disabled={reviewingProofId === proof.id}
+                        className="px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {reviewingProofId === proof.id ? (
+                          <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                        ) : null}
+                        Valider
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
