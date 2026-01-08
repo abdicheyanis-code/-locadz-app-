@@ -13,6 +13,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { HostDashboard } from './components/HostDashboard';
 import { AboutUs } from './components/AboutUs';
 import { ProfileSettings } from './components/ProfileSettings';
+import { LegalPages } from './components/LegalPages';
 import { CATEGORIES, INITIAL_PROPERTIES } from './constants';
 import { Property, UserRole, UserProfile, AppLanguage } from './types';
 import { authService } from './services/authService';
