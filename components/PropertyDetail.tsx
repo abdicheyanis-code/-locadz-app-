@@ -129,7 +129,8 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({
 
   const pricing = calculatePricing(property.price, nights || 1);
   const isRTL = language === 'ar';
-
+  const { notify } = useNotification();
+  
   const handleBooking = async () => {
     if (!currentUser) {
       alert('Veuillez vous connecter pour réserver.');
