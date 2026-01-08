@@ -6,6 +6,7 @@ import { payoutService } from '../services/payoutService';
 import { paymentService } from '../services/paymentService';
 import { ReviewSection } from './ReviewSection';
 import L from 'leaflet';
+import { useNotification } from './NotificationProvider';
 
 interface PropertyDetailProps {
   property: Property;
