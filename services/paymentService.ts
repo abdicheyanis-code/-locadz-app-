@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
-import { PaymentMethod } from '../types';
+import { PaymentMethod, PaymentProof } from '../types';
+import { authService } from './authService';
 
 interface UploadPaymentProofOptions {
   userId: string;
@@ -36,7 +37,7 @@ export const paymentService = {
         return { proofId: null, error: 'UPLOAD_FAILED' };
       }
 
-      // 3) Récupérer une URL publique (pour que host/admin puissent la voir)
+      // 3) Récupérer une URL publique
       const { data: publicUrlData } = supabase.storage
         .from('payment-proofs')
         .getPublicUrl(uploadData.path);
@@ -67,6 +68,98 @@ export const paymentService = {
     } catch (e) {
       console.error('Unexpected payment proof error:', e);
       return { proofId: null, error: 'UNKNOWN_ERROR' };
+    }
+  },
+
+  /**
+   * ADMIN : liste des preuves de paiement en attente de validation
+   */
+  getPendingProofsForAdmin: async (): Promise<PaymentProof[]> => {
+    const admin = authService.getSession();
+    if (!admin || admin.role !== 'ADMIN') {
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('payment_proofs')
+      .select('*')
+      .eq('status', 'PENDING')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('getPendingProofsForAdmin error:', error);
+      return [];
+    }
+
+    return (data as PaymentProof[]) || [];
+  },
+
+  /**
+   * ADMIN : valider ou rejeter une preuve de paiement
+   * - approve = true  -> status = APPROVED + booking -> PAID
+   * - approve = false -> status = REJECTED + raison optionnelle
+   */
+  reviewPaymentProof: async (params: {
+    proofId: string;
+    approve: boolean;
+    rejectionReason?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    const { proofId, approve, rejectionReason } = params;
+
+    const admin = authService.getSession();
+    if (!admin || admin.role !== 'ADMIN') {
+      return { success: false, error: 'UNAUTHORIZED' };
+    }
+
+    try {
+      // 1) Récupérer la preuve pour connaître booking_id
+      const { data: proof, error: proofError } = await supabase
+        .from('payment_proofs')
+        .select('booking_id')
+        .eq('id', proofId)
+        .maybeSingle();
+
+      if (proofError || !proof) {
+        console.error('reviewPaymentProof: proof not found', proofError);
+        return { success: false, error: 'PROOF_NOT_FOUND' };
+      }
+
+      const now = new Date().toISOString();
+      const newStatus = approve ? 'APPROVED' : 'REJECTED';
+
+      // 2) Mettre à jour la preuve
+      const { error: updateProofError } = await supabase
+        .from('payment_proofs')
+        .update({
+          status: newStatus,
+          reviewed_by: admin.id,
+          reviewed_at: now,
+          rejection_reason: approve ? null : rejectionReason || null,
+        })
+        .eq('id', proofId);
+
+      if (updateProofError) {
+        console.error('reviewPaymentProof: update proof error', updateProofError);
+        return { success: false, error: 'UPDATE_FAILED' };
+      }
+
+      // 3) Si approuvé, marquer la réservation comme PAYÉE
+      if (approve) {
+        const { error: bookingError } = await supabase
+          .from('bookings')
+          .update({ status: 'PAID' })
+          .eq('id', proof.booking_id);
+
+        if (bookingError) {
+          console.error('reviewPaymentProof: update booking error', bookingError);
+          return { success: false, error: 'BOOKING_UPDATE_FAILED' };
+        }
+      }
+
+      return { success: true };
+    } catch (e) {
+      console.error('Unexpected reviewPaymentProof error:', e);
+      return { success: false, error: 'UNKNOWN_ERROR' };
     }
   },
 };
