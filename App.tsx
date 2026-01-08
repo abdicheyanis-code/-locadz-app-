@@ -479,12 +479,12 @@ const App: React.FC = () => {
                   />
                 )}
 
-                {activeView === 'ABOUT' && (
-                  <>
-                    <AboutUs language={language} translations={t} />
-                    {/* LegalPages si tu l’as ajouté */}
-                  </>
-                )}
+                  {activeView === 'ABOUT' && (
+    <>
+      <AboutUs language={language} translations={t} />
+      <LegalPages language={language} />
+    </>
+  )}
 
                 {activeView === 'HOST_DASH' && currentUser && (
                   <HostDashboard
