@@ -21,6 +21,7 @@ import { favoriteService } from './services/favoriteService';
 import { bookingService } from './services/bookingService';
 import { parseSmartSearch } from './services/geminiService';
 import { TRANSLATIONS } from './services/i18n';
+import { LegalPages } from './components/LegalPages';
 
 type ActiveView = 'EXPLORE' | 'BOOKINGS' | 'FAVORITES' | 'PROFILE' | 'ADMIN' | 'HOST_DASH' | 'ABOUT';
 
