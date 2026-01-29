@@ -7,7 +7,7 @@ interface ProfileSettingsProps {
   language: AppLanguage;
   translations: any;
   onLogout: () => void;
-  onSwitchRole: () => void;
+  onSwitchRole: () => void; // encore présent dans le type, mais on ne l’utilise plus
 }
 
 export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
@@ -15,30 +15,24 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   language,
   translations: t,
   onLogout,
-  onSwitchRole,
 }) => {
   const isRTL = language === 'ar';
 
   const [user, setUser] = useState<UserProfile>(currentUser);
 
-  const [phoneInput, setPhoneInput] = useState<string>(currentUser.phone_number || '');
+  const [phoneInput, setPhoneInput] = useState<string>(
+    currentUser.phone_number || ''
+  );
   const [code, setCode] = useState('');
   const [isRequesting, setIsRequesting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [phoneMsg, setPhoneMsg] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
-  const [debugCode, setDebugCode] = useState<string | null>(null);
 
   useEffect(() => {
     setUser(currentUser);
     setPhoneInput(currentUser.phone_number || '');
   }, [currentUser]);
-
-  const stats = [
-    { label: language === 'ar' ? 'رحلات' : 'VOYAGES', value: '12', icon: '🎒' },
-    { label: language === 'ar' ? 'مفضلة' : 'FAVORIS', value: '08', icon: '❤️' },
-    { label: language === 'ar' ? 'نقاط' : 'POINTS', value: '450', icon: '✨' },
-  ];
 
   const validatePhone = (value: string) =>
     /^(0)(5|6|7)[0-9]{8}$/.test(value.replace(/\s/g, ''));
@@ -46,7 +40,6 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
   const handleSendCode = async () => {
     setPhoneError(null);
     setPhoneMsg(null);
-    setDebugCode(null);
 
     if (!phoneInput || !validatePhone(phoneInput)) {
       setPhoneError(
@@ -59,7 +52,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
 
     try {
       setIsRequesting(true);
-      const { code, profile } = await phoneVerificationService.requestVerification(
+      const { profile } = await phoneVerificationService.requestVerification(
         user,
         phoneInput
       );
@@ -67,10 +60,9 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
       setCode('');
       setPhoneMsg(
         language === 'ar'
-          ? 'تم إرسال رمز التحقق (اختبار).'
-          : 'Code de vérification envoyé (test).'
+          ? 'تم إرسال رمز التحقق.'
+          : 'Code de vérification envoyé.'
       );
-      setDebugCode(code);
     } catch (err) {
       console.error(err);
       setPhoneError(
@@ -89,7 +81,9 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
 
     if (!code || code.length < 4) {
       setPhoneError(
-        language === 'ar' ? 'أدخل رمزًا صالحًا.' : 'Veuillez entrer un code valide.'
+        language === 'ar'
+          ? 'أدخل رمزًا صالحًا.'
+          : 'Veuillez entrer un code valide.'
       );
       return;
     }
@@ -104,7 +98,6 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
           : 'Numéro de téléphone vérifié avec succès.'
       );
       setCode('');
-      setDebugCode(null);
     } catch (err: any) {
       console.error(err);
       const msg = (err?.message || '').toString();
@@ -116,9 +109,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
         );
       } else if (msg === 'CODE_INVALID') {
         setPhoneError(
-          language === 'ar'
-            ? 'الرمز غير صحيح.'
-            : 'Code incorrect.'
+          language === 'ar' ? 'الرمز غير صحيح.' : 'Code incorrect.'
         );
       } else {
         setPhoneError(
@@ -216,32 +207,15 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                     ? '✓ IDENTITÉ VÉRIFIÉE'
                     : '○ IDENTITÉ NON VÉRIFIÉE'}
                 </span>
-           </div>
+              </div>
               <div className="px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-2 bg-gray-100 text-gray-400 border border-gray-200">
-  <span>○ MOBILE NON VÉRIFIÉ</span>
-</div>
-            
+                <span>
+                  {user.phone_verified ? '✓ MOBILE VÉRIFIÉ' : '○ MOBILE NON VÉRIFIÉ'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-6">
-        {stats.map((s, idx) => (
-          <div
-            key={idx}
-            className="bg-white/10 backdrop-blur-xl p-8 rounded-[3rem] border border-white/10 text-center shadow-2xl transition-all hover:-translate-y-2"
-          >
-            <span className="text-3xl block mb-4">{s.icon}</span>
-            <p className="text-4xl font-black text-white italic tracking-tighter mb-2">
-              {s.value}
-            </p>
-            <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em]">
-              {s.label}
-            </p>
-          </div>
-        ))}
       </div>
 
       {/* Info Sections */}
@@ -323,12 +297,6 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                   </button>
                 </div>
 
-                {debugCode && (
-                  <p className="text-[10px] text-amber-500 font-bold">
-                    Code TEST (simule un SMS) : <span className="font-mono">{debugCode}</span>
-                  </p>
-                )}
-
                 {phoneMsg && (
                   <p className="text-[10px] text-emerald-600 font-bold uppercase">
                     {phoneMsg}
@@ -344,23 +312,20 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
           </div>
         </div>
 
-        {/* Actions réseau */}
+        {/* Déconnexion uniquement (plus de switch host fake) */}
         <div className="bg-indigo-950/20 backdrop-blur-xl p-10 rounded-[3.5rem] border border-white/10 shadow-xl flex flex-col justify-between">
           <div>
-            <h3 className="text-[11px] font-black text-indigo-300 uppercase tracking-[0.4em] mb-6">
-              Actions Réseau
+            <h3 className="text-[11px] font-black text-indigo-300 uppercase tracking-[0.4em] mb-4">
+              Sécurité du Compte
             </h3>
-            <button
-              onClick={onSwitchRole}
-              className="w-full py-5 bg:white text-indigo-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px] shadow-xl hover:-translate-y-1 transition-all mb-4 flex items-center justify-center gap-3"
-            >
-              <span>SWITCH TO HOST MODE</span>
-              <span className="text-lg">🗝️</span>
-            </button>
+            <p className="text-xs text-white/50 leading-relaxed">
+              Gérez votre session LOCADZ et déconnectez-vous de manière sécurisée depuis cet
+              appareil.
+            </p>
           </div>
           <button
             onClick={onLogout}
-            className="w-full py-5 border-2 border-rose-500/30 text-rose-500 rounded-[2rem] font-black uppercase tracking-widest text-[10px] hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-3"
+            className="w-full mt-8 py-5 border-2 border-rose-500/30 text-rose-500 rounded-[2rem] font-black uppercase tracking-widest text-[10px] hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-3"
           >
             <span>DÉCONNEXION SÉCURISÉE</span>
             <span className="text-lg">🚪</span>
@@ -373,7 +338,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({
         <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.4em]">
           Système de Protection LOCADZ
         </p>
-        <p className="text-xs text:white/60 leading-relaxed max-w-2xl mx-auto italic">
+        <p className="text-xs text-white/60 leading-relaxed max-w-2xl mx-auto italic">
           "Vos données sont protégées par notre infrastructure Cloud. Seules les informations
           nécessaires à la vérification légale sont traitées par nos modérateurs accrédités."
         </p>
