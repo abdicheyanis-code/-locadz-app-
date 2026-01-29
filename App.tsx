@@ -464,7 +464,9 @@ const App: React.FC = () => {
               )}
 
               <div className="px-6 md:px-20 max-w-7xl mx-auto">
-                {activeView === 'ADMIN' && <AdminDashboard />}
+                 {activeView === 'ADMIN' && currentUser && (
+    <AdminDashboard currentUser={currentUser} />
+  )}
 
                 {activeView === 'PROFILE' && currentUser && (
                   <ProfileSettings
