@@ -15,24 +15,19 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
   currentUser,
   onSuccess,
 }) => {
-  const [rectoPreview, setRectoPreview] = useState<string | null>(null);
-  const [versoPreview, setVersoPreview] = useState<string | null>(null);
-  const [rectoFile, setRectoFile] = useState<File | null>(null);
-  const [versoFile, setVersoFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [stage, setStage] = useState<'IDLE' | 'SCANNING' | 'SUCCESS' | 'ERROR'>(
     'IDLE'
   );
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  const rectoInputRef = useRef<HTMLInputElement>(null);
-  const versoInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
-      setRectoPreview(null);
-      setVersoPreview(null);
-      setRectoFile(null);
-      setVersoFile(null);
+      setPreviewUrl(null);
+      setFileToUpload(null);
       setStage('IDLE');
       setErrorMessage('');
     }
@@ -40,62 +35,48 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
 
   if (!isOpen) return null;
 
-  const loadPreview = (file: File, setPreview: (url: string | null) => void) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleRectoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) {
-      setRectoFile(f);
-      loadPreview(f, setRectoPreview);
-    }
-  };
-
-  const handleVersoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) {
-      setVersoFile(f);
-      loadPreview(f, setVersoPreview);
+      setFileToUpload(f);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(f);
     }
   };
 
   const handleSubmit = async () => {
-    if (!rectoFile || !versoFile || !currentUser?.id) return;
+    if (!fileToUpload || !currentUser?.id) return;
 
     setStage('SCANNING');
     setErrorMessage('');
 
     try {
-      const rectoExt = rectoFile.name.split('.').pop() || 'jpg';
-      const versoExt = versoFile.name.split('.').pop() || 'jpg';
+      // 1) Upload dans le bucket "id_documents"
+      const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
+      const filePath = `${currentUser.id}/cni.${fileExt}`;
 
-      const rectoPath = `${currentUser.id}/recto.${rectoExt}`;
-      const versoPath = `${currentUser.id}/verso.${versoExt}`;
-
-      // Upload recto
-      const { error: uploadRectoError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('id_documents')
-        .upload(rectoPath, rectoFile, { upsert: true });
-      if (uploadRectoError) throw uploadRectoError;
+        .upload(filePath, fileToUpload, { upsert: true });
 
-      // Upload verso
-      const { error: uploadVersoError } = await supabase.storage
+      if (uploadError) throw uploadError;
+
+      // 2) Récupérer une URL publique
+      const { data: publicUrlData } = supabase.storage
         .from('id_documents')
-        .upload(versoPath, versoFile, { upsert: true });
-      if (uploadVersoError) throw uploadVersoError;
+        .getPublicUrl(filePath);
 
-      // Mettre à jour users avec les chemins + statut PENDING
+      const publicUrl = publicUrlData.publicUrl;
+
+      // 3) Mettre à jour l'utilisateur : statut + URL de la CNI
       const { data: updatedRow, error: updateError } = await supabase
         .from('users')
         .update({
           id_verification_status: 'PENDING',
-          id_card_recto_path: rectoPath,
-          id_card_verso_path: versoPath,
+          id_document_url: publicUrl,
         })
         .eq('id', currentUser.id)
         .select('*')
@@ -108,10 +89,7 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
       onSuccess({
         ...currentUser,
         id_verification_status: 'PENDING',
-        // @ts-ignore si tes types n'ont pas encore ces champs
-        id_card_recto_path: rectoPath,
-        // @ts-ignore
-        id_card_verso_path: versoPath,
+        id_document_url: publicUrl,
       });
     } catch (err: any) {
       console.error('Erreur upload ID:', err);
@@ -120,11 +98,13 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
     }
   };
 
-  const canSubmit = !!rectoFile && !!versoFile;
+  const canSubmit = !!fileToUpload;
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-indigo-950/80 backdrop-blur-2xl animate-in fade-in duration-300">
-      <div className="bg-white/95 backdrop-blur-3xl w-full max-w-lg rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.6)] border border-white/50 overflow-hidden relative">
+    <div
+      className="fixed inset-0 z-[250] bg-indigo-950/80 backdrop-blur-2xl flex justify-center p-4 overflow-y-auto animate-in fade-in duration-300"
+    >
+      <div className="bg-white/95 backdrop-blur-3xl w-full max-w-lg rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.6)] border border-white/50 overflow-hidden relative my-8">
         {/* Bouton X pour fermer */}
         <button
           onClick={onClose}
@@ -147,8 +127,8 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
 
         <div className="p-10">
           {(stage === 'IDLE' || stage === 'ERROR') && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+              <div className="text-center mb-4">
                 <div className="w-20 h-20 bg-indigo-600 rounded-3xl mx-auto flex items-center justify-center text-3xl shadow-2xl mb-6 animate-bounce-slow">
                   🪪
                 </div>
@@ -161,158 +141,93 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
               </div>
 
               {stage === 'ERROR' && (
-                <div className="mb-4 p-3 bg-red-100 text-red-600 text-xs font-bold rounded-xl text-center">
+                <div className="mb-2 p-3 bg-red-100 text-red-600 text-xs font-bold rounded-xl text-center">
                   {errorMessage}
                 </div>
               )}
 
-              <div className="space-y-6">
-                {/* Zone Recto */}
-                <div className="space-y-2">
-                  <p className="text-[9px] font-black text-indigo-300 uppercase text-left ml-1">
-                    RECTO de la carte
-                  </p>
-                  {!rectoPreview ? (
-                    <div
-                      onClick={() => rectoInputRef.current?.click()}
-                      className="aspect-video border-4 border-dashed border-indigo-100 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all group relative overflow-hidden"
+              {/* Zone image */}
+              <div className="space-y-3">
+                {!previewUrl ? (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="aspect-video border-4 border-dashed border-indigo-100 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all group relative overflow-hidden"
+                  >
+                    <div className="w-16 h-16 bg-white rounded-2xl shadow-lg flex items-center justify-center text-2xl group-hover:scale-110 transition-transform mb-2">
+                      📸
+                    </div>
+                    <p className="font-black text-indigo-900 text-sm uppercase tracking-widest">
+                      Scanner ma carte
+                    </p>
+                    <p className="text-[10px] font-bold text-gray-400 mt-1 text-center px-6 italic">
+                      Prenez une photo nette (recto et verso si possible)
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                ) : (
+                  <div className="relative aspect-video rounded-[2.5rem] overflow-hidden border-2 border-indigo-600 shadow-2xl animate-in zoom-in-95 group">
+                    <img
+                      src={previewUrl}
+                      className="w-full h-full object-cover"
+                      alt="ID Preview"
+                    />
+                    <button
+                      onClick={() => {
+                        setPreviewUrl(null);
+                        setFileToUpload(null);
+                      }}
+                      className="absolute top-4 right-4 bg-white/20 backdrop-blur-md p-2 rounded-full text-white border border-white/30 hover:bg-rose-500 transition-all"
                     >
-                      <div className="w-12 h-12 bg-white rounded-2xl shadow-lg flex items-center justify-center text-2xl group-hover:scale-110 transition-transform mb-2">
-                        📸
-                      </div>
-                      <p className="font-black text-indigo-900 text-xs uppercase tracking-widest">
-                        Scanner recto
-                      </p>
-                      <p className="text-[10px] font-bold text-gray-400 mt-1 text-center px-6 italic">
-                        Utilisez l&apos;appareil photo ou importez un fichier
-                      </p>
-                      <input
-                        ref={rectoInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={handleRectoChange}
-                      />
-                    </div>
-                  ) : (
-                    <div className="relative aspect-video rounded-[2.5rem] overflow-hidden border-2 border-indigo-600 shadow-2xl animate-in zoom-in-95 group">
-                      <img
-                        src={rectoPreview}
-                        className="w-full h-full object-cover"
-                        alt="Recto ID Preview"
-                      />
-                      <button
-                        onClick={() => {
-                          setRectoPreview(null);
-                          setRectoFile(null);
-                        }}
-                        className="absolute top-4 right-4 bg-white/20 backdrop-blur-md p-2 rounded-full text-white border border-white/30 hover:bg-rose-500 transition-all"
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2.5"
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Zone Verso */}
-                <div className="space-y-2">
-                  <p className="text-[9px] font-black text-indigo-300 uppercase text-left ml-1">
-                    VERSO de la carte
-                  </p>
-                  {!versoPreview ? (
-                    <div
-                      onClick={() => versoInputRef.current?.click()}
-                      className="aspect-video border-4 border-dashed border-indigo-100 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all group relative overflow-hidden"
-                    >
-                      <div className="w-12 h-12 bg-white rounded-2xl shadow-lg flex items-center justify-center text-2xl group-hover:scale-110 transition-transform mb-2">
-                        📸
-                      </div>
-                      <p className="font-black text-indigo-900 text-xs uppercase tracking-widest">
-                        Scanner verso
-                      </p>
-                      <p className="text-[10px] font-bold text-gray-400 mt-1 text-center px-6 italic">
-                        Utilisez l&apos;appareil photo ou importez un fichier
-                      </p>
-                      <input
-                        ref={versoInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={handleVersoChange}
-                      />
-                    </div>
-                  ) : (
-                    <div className="relative aspect-video rounded-[2.5rem] overflow-hidden border-2 border-indigo-600 shadow-2xl animate-in zoom-in-95 group">
-                      <img
-                        src={versoPreview}
-                        className="w-full h-full object-cover"
-                        alt="Verso ID Preview"
-                      />
-                      <button
-                        onClick={() => {
-                          setVersoPreview(null);
-                          setVersoFile(null);
-                        }}
-                        className="absolute top-4 right-4 bg-white/20 backdrop-blur-md p-2 rounded-full text-white border border-white/30 hover:bg-rose-500 transition-all"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2.5"
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                </div>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2.5"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                )}
 
                 <div className="bg-indigo-50 p-6 rounded-[2rem] border border-indigo-100 flex items-start gap-4">
                   <span className="text-2xl">🔒</span>
                   <p className="text-[9px] font-black text-indigo-400 leading-relaxed uppercase tracking-tight">
                     Vos documents sont stockés dans un coffre-fort numérique
-                    sécurisé. Seule l&apos;équipe LOCADZ (admin) peut les
-                    examiner pour validation.
+                    sécurisé. Seule l&apos;équipe LOCADZ (admin) peut les examiner
+                    pour validation.
                   </p>
                 </div>
+              </div>
 
-                {/* Boutons bas : Annuler + Envoyer */}
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="flex-1 py-4 rounded-[2rem] border border-gray-200 text-gray-500 font-black uppercase tracking-[0.2em] text-[10px] hover:bg-gray-50 transition-all active:scale-95"
-                  >
-                    ANNULER
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!canSubmit}
-                    className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-3 group"
-                  >
-                    DÉMARRER L&apos;ENVOI
-                  </button>
-                </div>
+              {/* Boutons bas */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 py-4 rounded-[2rem] border border-gray-200 text-gray-500 font-black uppercase tracking-[0.2em] text-[10px] hover:bg-gray-50 transition-all active:scale-95"
+                >
+                  ANNULER
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-3 group"
+                >
+                  DÉMARRER L&apos;ENVOI
+                </button>
               </div>
             </div>
           )}
@@ -323,9 +238,9 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
                 <div className="absolute inset-0 border-4 border-indigo-100 rounded-full" />
                 <div className="absolute inset-0 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
                 <div className="absolute inset-4 overflow-hidden rounded-full">
-                  {rectoPreview && (
+                  {previewUrl && (
                     <img
-                      src={rectoPreview}
+                      src={previewUrl}
                       className="w-full h-full object-cover grayscale opacity-50"
                       alt="Processing"
                     />
