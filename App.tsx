@@ -324,12 +324,17 @@ const App: React.FC = () => {
             translations={t}
           />
         ) : showWelcome ? (
-          <WelcomeScreen
-            currentUser={currentUser}
-            onNavigate={view => handleNavigate(view as ActiveView, true)}
-            language={language}
-            translations={t}
-          />
+         <WelcomeScreen
+  currentUser={currentUser}
+  currentRole={userRole}
+  onSelectRole={role => {
+    setUserRole(role);
+    handleNavigate(role === 'HOST' ? 'HOST_DASH' : 'EXPLORE', true);
+  }}
+  onNavigate={view => handleNavigate(view as ActiveView, true)}
+  language={language}
+  translations={t}
+/>
         ) : (
           <>
             <Navbar
