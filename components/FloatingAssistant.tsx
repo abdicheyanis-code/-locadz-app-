@@ -21,7 +21,8 @@ export const FloatingAssistant: React.FC<Props> = ({ currentProperty }) => {
                    text-white"
         aria-label="Assistant DZ"
       >
-        <Sparkles size={20} />
+        {/* Icône remplacée par un simple emoji */}
+        <span className="text-xl">💬</span>
       </button>
 
       {/* OVERLAY */}
@@ -51,8 +52,10 @@ export const FloatingAssistant: React.FC<Props> = ({ currentProperty }) => {
             <button
               onClick={() => setOpen(false)}
               className="p-1 rounded-full hover:bg-white/10 transition"
+              aria-label="Fermer l’assistant"
             >
-              <X size={18} />
+              {/* X remplacé par un simple texte */}
+              <span className="text-lg leading-none">✕</span>
             </button>
           </div>
 
