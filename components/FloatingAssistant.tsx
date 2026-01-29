@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { GeminiAssistant } from './GeminiAssistant';
-import { X, Sparkles } from 'lucide-react';
 
 type Props = {
   currentProperty?: any;
