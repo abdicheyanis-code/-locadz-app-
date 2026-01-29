@@ -22,6 +22,7 @@ import { favoriteService } from './services/favoriteService';
 import { bookingService } from './services/bookingService';
 import { parseSmartSearch } from './services/geminiService';
 import { TRANSLATIONS } from './services/i18n';
+import { FloatingAssistant } from './components/FloatingAssistant';
 
 type ActiveView =
   | 'EXPLORE'
@@ -521,6 +522,7 @@ const App: React.FC = () => {
         onClose={() => setIsAuthOpen(false)}
         onSuccess={handleAuthSuccess}
       />
+<FloatingAssistant currentProperty={selectedProperty} />
 
       
     </div>
