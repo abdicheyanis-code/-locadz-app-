@@ -278,7 +278,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {pendingUsers.map(u => (
               <div
                 key={u.id}
-                className="flex items-center justify-between p-6 bg-indigo-50/50 rounded-[2.5rem] border border-indigo-100"
+                className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-6 bg-indigo-50/50 rounded-[2.5rem] border border-indigo-100"
               >
                 <div className="flex items-center gap-5">
                   <img
@@ -287,23 +287,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     alt=""
                   />
                   <div>
-                    <p className="font-black text-indigo-950">{u.full_name}</p>
+                    <p className="font-black text-indigo-950">
+                      {u.full_name}
+                    </p>
                     <button
                       onClick={() =>
-                        u.id_document_url && window.open(u.id_document_url)
+                        u.id_document_url &&
+                        window.open(u.id_document_url, '_blank')
                       }
-                      className="text-[9px] font-black text-indigo-400 uppercase underline"
+                      className="mt-1 text-[9px] font-black text-indigo-400 uppercase underline"
                     >
                       Voir CNI ↗
                     </button>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleApprove(u.id)}
-                  className="px-8 py-4 bg-indigo-600 text-white text-[10px] font-black rounded-2xl hover:bg-indigo-700 shadow-xl"
-                >
-                  APPROUVER
-                </button>
+
+                <div className="flex flex-row md:flex-row gap-3 md:gap-4 justify-end">
+                  <button
+                    onClick={() => handleApprove(u.id)}
+                    className="px-8 py-3 bg-indigo-600 text-white text-[10px] font-black rounded-2xl hover:bg-indigo-700 shadow-xl"
+                  >
+                    APPROUVER
+                  </button>
+                </div>
               </div>
             ))}
             {pendingUsers.length === 0 && (
