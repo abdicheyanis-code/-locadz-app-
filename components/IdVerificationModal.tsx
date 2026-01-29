@@ -125,6 +125,7 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-indigo-950/80 backdrop-blur-2xl animate-in fade-in duration-300">
       <div className="bg-white/95 backdrop-blur-3xl w-full max-w-lg rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.6)] border border-white/50 overflow-hidden relative">
+        {/* Bouton X pour fermer */}
         <button
           onClick={onClose}
           className="absolute top-6 right-6 text-gray-400 hover:text-indigo-600 transition-all active:scale-90 z-10"
@@ -295,13 +296,23 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
                   </p>
                 </div>
 
-                <button
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  className="w-full py-6 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-3 group"
-                >
-                  DÉMARRER L&apos;ENVOI
-                </button>
+                {/* Boutons bas : Annuler + Envoyer */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 py-4 rounded-[2rem] border border-gray-200 text-gray-500 font-black uppercase tracking-[0.2em] text-[10px] hover:bg-gray-50 transition-all active:scale-95"
+                  >
+                    ANNULER
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-3 group"
+                  >
+                    DÉMARRER L&apos;ENVOI
+                  </button>
+                </div>
               </div>
             </div>
           )}
