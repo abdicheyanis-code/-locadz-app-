@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { GoogleGenAI } from "@google/genai";
 
 // --------------------
@@ -19,14 +19,13 @@ if (!apiKey) {
 type LocationContext = { lat: number; lng: number };
 
 // --------------------
-// FONCTIONS UTILITAIRES (comme avant)
+// FONCTIONS UTILITAIRES
 // --------------------
 
 export const getTravelAdvice = async (
   userPrompt: string,
   locationContext?: LocationContext
 ) => {
-  // Si pas de clé, on renvoie un message gentil au lieu de planter
   if (!ai) {
     return {
       text:
@@ -38,6 +37,11 @@ export const getTravelAdvice = async (
   try {
     const config: any = {
       tools: [{ googleSearch: {} }],
+      // IMPORTANT : limiter la taille + rendre la réponse plus contrôlée
+      generationConfig: {
+        maxOutputTokens: 180, // évite les pavés de texte
+        temperature: 0.4, // plus logique, moins créatif
+      },
     };
 
     if (locationContext) {
@@ -54,18 +58,25 @@ export const getTravelAdvice = async (
 
     const response: any = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `Vous êtes le Concierge Elite de LOCADZ Algérie. 
-Requête : "${userPrompt}". 
-Contexte géo : ${
+      contents: `
+Tu es le Concierge Elite de LOCADZ en Algérie.
+
+Requête utilisateur (en français) :
+"${userPrompt}"
+
+Contexte géographique : ${
         locationContext
-          ? `Lat ${locationContext.lat}, Lng ${locationContext.lng}`
-          : "Global Algérie"
+          ? `Latitude ${locationContext.lat}, Longitude ${locationContext.lng}`
+          : "Algérie (sans précision)"
       }.
-Instructions :
-1. Donnez des recommandations ultra-locales (restaurants, musées, banques).
-2. Utilisez Google Maps pour trouver des lieux REELS et ouverts.
-3. Proposez des liens Google Maps si disponibles.
-4. Soyez élégant, chaleureux et précis.`,
+
+CONSIGNES STRICTES :
+1. Réponds UNIQUEMENT à la demande de l'utilisateur, ne pars pas hors-sujet.
+2. Réponse courte : 3 à 5 phrases maximum, pas de grands paragraphes.
+3. Si tu proposes des lieux (restaurants, banques, services...), donne des recommandations RÉALISTES pour l'Algérie.
+4. Si tu n'es pas sûr, dis-le clairement plutôt que d'inventer.
+5. Si possible, structure avec des tirets ou une petite liste très courte.
+`,
       config,
     });
 
@@ -97,7 +108,6 @@ export const parseSmartSearch = async (
   query: string,
   categories: string[]
 ) => {
-  // Sans clé, on ne tente rien et on ne casse pas l'app
   if (!ai) {
     return "trending";
   }
@@ -105,9 +115,11 @@ export const parseSmartSearch = async (
   try {
     const response: any = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Analyse : "${query}". Catégories : [${categories.join(
+      contents: `Analyse cette recherche : "${query}". 
+Catégories possibles : [${categories.join(
         ", "
-      )}]. ID le plus proche ? Réponse : un seul mot.`,
+      )}]. Retourne uniquement l'ID de catégorie la plus pertinente. 
+Réponds par un seul mot (l'ID), en minuscules.`,
     });
 
     return response.text?.trim().toLowerCase();
@@ -138,7 +150,15 @@ export const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const hasAi = !!apiKey;
+
+  // Scroll auto vers le bas quand un nouveau message arrive
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   // Essaie d'extraire des coords si dispo dans currentProperty
   const deriveLocation = (): LocationContext | undefined => {
@@ -205,13 +225,13 @@ export const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
   };
 
   return (
-    <div className="flex h-full flex-col text-sm text-white">
+    <div className="flex h-full min-h-0 flex-col text-sm text-white">
       {/* ZONE MESSAGES */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
         {messages.length === 0 && (
           <div className="text-xs text-white/60">
-            Posez vos questions au Concierge LOCADZ : quartiers, transports,
-            restaurants, services à proximité...
+            Pose une question claire sur le bien, le quartier, la sécurité,
+            les services à proximité, les transports, etc.
           </div>
         )}
 
@@ -223,13 +243,13 @@ export const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
             }`}
           >
             <div
-              className={`max-w-[80%] rounded-2xl px-3 py-2 ${
+              className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs ${
                 m.from === "user"
                   ? "bg-indigo-500 text-white"
                   : "bg-white/10 text-white"
               }`}
             >
-              <div className="whitespace-pre-wrap">{m.text}</div>
+              <div className="whitespace-pre-wrap leading-snug">{m.text}</div>
 
               {m.sources && m.sources.length > 0 && (
                 <div className="mt-2 space-y-1 text-[11px] text-indigo-200">
@@ -254,6 +274,8 @@ export const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
         {loading && (
           <div className="text-xs text-white/60">L’assistant rédige...</div>
         )}
+
+        <div ref={messagesEndRef} />
       </div>
 
       {/* BARRE DE SAISIE */}
@@ -267,7 +289,7 @@ export const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
           onChange={(e) => setInput(e.target.value)}
           placeholder={
             hasAi
-              ? "Pose une question sur ce bien ou le quartier..."
+              ? "Pose une question précise (ex : sécurité, commerces, transports...)"
               : "Assistant désactivé : clé API manquante."
           }
           disabled={!hasAi || loading}
