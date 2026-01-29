@@ -54,29 +54,22 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
     setErrorMessage('');
 
     try {
-      // 1) Upload dans le bucket "id_documents"
       const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
-      const filePath = `${currentUser.id}/cni.${fileExt}`;
+      const filePath = `${currentUser.id}/cni.${fileExt}`; // chemin privé
 
+      // 1) Upload dans le bucket PRIVÉ "id_documents"
       const { error: uploadError } = await supabase.storage
         .from('id_documents')
         .upload(filePath, fileToUpload, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // 2) Récupérer une URL publique
-      const { data: publicUrlData } = supabase.storage
-        .from('id_documents')
-        .getPublicUrl(filePath);
-
-      const publicUrl = publicUrlData.publicUrl;
-
-      // 3) Mettre à jour l'utilisateur : statut + URL de la CNI
+      // 2) On stocke le PATH dans users.id_document_url (pas une URL publique)
       const { data: updatedRow, error: updateError } = await supabase
         .from('users')
         .update({
           id_verification_status: 'PENDING',
-          id_document_url: publicUrl,
+          id_document_url: filePath, // contient le path du fichier dans id_documents
         })
         .eq('id', currentUser.id)
         .select('*')
@@ -89,7 +82,7 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
       onSuccess({
         ...currentUser,
         id_verification_status: 'PENDING',
-        id_document_url: publicUrl,
+        id_document_url: filePath,
       });
     } catch (err: any) {
       console.error('Erreur upload ID:', err);
@@ -101,11 +94,9 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
   const canSubmit = !!fileToUpload;
 
   return (
-    <div
-      className="fixed inset-0 z-[250] bg-indigo-950/80 backdrop-blur-2xl flex justify-center p-4 overflow-y-auto animate-in fade-in duration-300"
-    >
+    <div className="fixed inset-0 z-[250] bg-indigo-950/80 backdrop-blur-2xl flex justify-center p-4 overflow-y-auto animate-in fade-in duration-300">
       <div className="bg-white/95 backdrop-blur-3xl w-full max-w-lg rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.6)] border border-white/50 overflow-hidden relative my-8">
-        {/* Bouton X pour fermer */}
+        {/* Bouton X */}
         <button
           onClick={onClose}
           className="absolute top-6 right-6 text-gray-400 hover:text-indigo-600 transition-all active:scale-90 z-10"
@@ -146,7 +137,6 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
                 </div>
               )}
 
-              {/* Zone image */}
               <div className="space-y-3">
                 {!previewUrl ? (
                   <div
@@ -206,13 +196,12 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
                   <span className="text-2xl">🔒</span>
                   <p className="text-[9px] font-black text-indigo-400 leading-relaxed uppercase tracking-tight">
                     Vos documents sont stockés dans un coffre-fort numérique
-                    sécurisé. Seule l&apos;équipe LOCADZ (admin) peut les examiner
-                    pour validation.
+                    sécurisé. Seule l&apos;équipe LOCADZ (admin) peut les
+                    examiner pour validation.
                   </p>
                 </div>
               </div>
 
-              {/* Boutons bas */}
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   type="button"
@@ -254,7 +243,7 @@ export const IdVerificationModal: React.FC<IdVerificationModalProps> = ({
           )}
 
           {stage === 'SUCCESS' && (
-            <div className="py-12 flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-700">
+            <div className="py-12 flex flex-col items-center justify-center textcenter animate-in zoom-in-95 duration-700">
               <div className="w-32 h-32 bg-green-500 rounded-full flex items-center justify-center shadow-2xl mb-8 animate-bounce-slow">
                 <svg
                   className="w-16 h-16 text-white"
