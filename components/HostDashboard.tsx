@@ -5,7 +5,9 @@ import {
   Booking,
   BookingStatus,
   PayoutRecord,
+  PayoutDetails,
 } from '../types';
+import { supabase } from '../supabaseClient';
 import { bookingService } from '../services/bookingService';
 import { propertyService } from '../services/propertyService';
 import { authService } from '../services/authService';
@@ -103,6 +105,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const [pendingRequests, setPendingRequests] = useState<Booking[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
 
+  // Formulaire de configuration des virements
   const [payoutForm, setPayoutForm] = useState({
     method: 'CCP' as 'CCP' | 'RIB',
     account_name: hostName,
@@ -118,7 +121,6 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [totalBookings, setTotalBookings] = useState(0);
 
-  // ⚠️ historique réel de virements (pour l’instant vide tant qu’on n’a pas de vraie source)
   const [payoutHistory, setPayoutHistory] = useState<PayoutRecord[]>([]);
 
   const loadDashboardData = useCallback(async () => {
@@ -140,32 +142,64 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
       ).length
     );
 
-    // TODO : quand tu auras une table "payouts" réelle,
-    // tu pourras charger l’historique ici, par ex :
-    // const history = await payoutService.getHistory(hostId);
-    // setPayoutHistory(history);
-    setPayoutHistory([]); // pour l’instant : aucun virement affiché tant que c’est pas branché
+    // À terme, tu pourras charger un vrai historique de virements ici
+    setPayoutHistory([]);
 
     setLoadingRequests(false);
   }, [hostId]);
 
   useEffect(() => {
-    const session = authService.getSession();
-    if (session) {
-      setCurrentUser(session);
-      const existingPayout = payoutService.getByHost(hostId);
-      if (existingPayout) {
-        setPayoutForm({
-          method: existingPayout.method,
-          account_name: existingPayout.account_name,
-          account_number: existingPayout.account_number,
-          bank_name: existingPayout.bank_name || '',
-        });
-        setPayoutConfigured(true);
+    const init = async () => {
+      const session = authService.getSession();
+      if (session) {
+        setCurrentUser(session);
+
+        // 1) Charger d'abord depuis Supabase (payout_details dans profiles)
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('payout_details')
+            .eq('id', hostId)
+            .single();
+
+          if (!error && data && data.payout_details) {
+            const pd = data.payout_details as PayoutDetails;
+            setPayoutForm(prev => ({
+              ...prev,
+              method:
+                pd.method === 'CCP' || pd.method === 'RIB'
+                  ? pd.method
+                  : 'CCP',
+              account_name: pd.accountName || hostName,
+              account_number: pd.accountNumber || '',
+              bank_name: pd.bankName || '',
+            }));
+            setPayoutConfigured(
+              !!pd.accountNumber && pd.method !== 'NONE'
+            );
+          } else {
+            // 2) Fallback : ancien stockage local (localStorage)
+            const existingPayout = payoutService.getByHost(hostId);
+            if (existingPayout) {
+              setPayoutForm({
+                method: existingPayout.method,
+                account_name: existingPayout.account_name,
+                account_number: existingPayout.account_number,
+                bank_name: existingPayout.bank_name || '',
+              });
+              setPayoutConfigured(true);
+            }
+          }
+        } catch (e) {
+          console.error('Erreur chargement payout_details:', e);
+        }
       }
-    }
-    loadDashboardData();
-  }, [hostId, loadDashboardData]);
+
+      await loadDashboardData();
+    };
+
+    init();
+  }, [hostId, hostName, loadDashboardData]);
 
   const handleBookingAction = async (
     id: string,
@@ -178,25 +212,72 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     }
   };
 
-  const handleSavePayout = (e: React.FormEvent) => {
+  const handleSavePayout = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
     const cleanNumber = payoutForm.account_number.replace(/\s/g, '');
     if (cleanNumber.length !== 20 || !/^\d+$/.test(cleanNumber)) {
       setError(
         `Le ${
-          payoutForm.method === 'CCP' ? 'RIP' : 'RIB'
+          payoutForm.method === 'CCP' ? 'RIP CCP' : 'RIB bancaire'
         } doit contenir exactement 20 chiffres.`
       );
       return;
     }
+
+    if (payoutForm.method === 'RIB' && !payoutForm.bank_name) {
+      setError('Veuillez sélectionner votre banque.');
+      return;
+    }
+
     setSaveStatus('SAVING');
-    setTimeout(() => {
-      payoutService.upsert(hostId, payoutForm);
-      setPayoutConfigured(true);
+
+    try {
+      // 1) Sauvegarde locale (compatibilité avec l’ancien système)
+      payoutService.upsert(hostId, {
+        method: payoutForm.method,
+        account_name: payoutForm.account_name,
+        account_number: payoutForm.account_number,
+        bank_name:
+          payoutForm.method === 'RIB'
+            ? payoutForm.bank_name
+            : undefined,
+      });
+
+      // 2) Sauvegarde dans Supabase (profils.payout_details)
+      const payoutDetails: PayoutDetails = {
+        method: payoutForm.method,
+        accountName: payoutForm.account_name,
+        accountNumber: payoutForm.account_number,
+        bankName:
+          payoutForm.method === 'RIB'
+            ? payoutForm.bank_name || undefined
+            : undefined,
+      };
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ payout_details: payoutDetails })
+        .eq('id', hostId);
+
+      if (updateError) {
+        console.error('Erreur update payout_details:', updateError);
+        setError(
+          "Vos coordonnées ont été sauvegardées localement, mais pas côté serveur. Réessayez plus tard."
+        );
+      } else {
+        setPayoutConfigured(true);
+      }
+    } catch (e) {
+      console.error('handleSavePayout error:', e);
+      setError(
+        "Erreur lors de l'enregistrement de vos coordonnées. Réessayez plus tard."
+      );
+    } finally {
       setSaveStatus('SUCCESS');
       setTimeout(() => setSaveStatus('IDLE'), 3000);
-    }, 1200);
+    }
   };
 
   const handleUpdatePrice = async (
@@ -273,7 +354,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                       {req.property_title}
                     </span>
                     <span className="text-[9px] font-black text-gray-300 uppercase">
-                      {new Date(req.created_at).toLocaleDateString()}
+                      {new Date(
+                        req.created_at
+                      ).toLocaleDateString()}
                     </span>
                   </div>
                   <div>
@@ -342,7 +425,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             ))}
           </div>
         ) : (
-          <div className="p-12 bg:white/5 border border-white/10 rounded-[2.5rem] text-center opacity-20 italic font-black uppercase text-xs tracking-[0.4em]">
+          <div className="p-12 bg-white/5 border border-white/10 rounded-[2.5rem] text-center opacity-20 italic font-black uppercase text-xs tracking-[0.4em]">
             Aucune demande en attente
           </div>
         )}
@@ -371,7 +454,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">
               Réservations Approuvées
             </p>
-            <h2 className="text-4xl md:text-5xl font-black text-white italic">
+            <h2 className="text-4xl md:text-5xls font-black text-white italic">
               {totalBookings}
             </h2>
             <button
@@ -383,8 +466,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
           </div>
         </div>
 
+        {/* Config virement */}
         <div className="lg:w-2/3">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-[3rem] p-10 border border:white shadow-2xl h-full flex flex-col">
+          <div className="bg-white/95 backdrop-blur-2xl rounded-[3rem] p-10 border border-white shadow-2xl h-full flex flex-col">
             <div className="flex items-center gap-4 mb-8">
               <div className="bg-indigo-600 p-3 rounded-2xl shadow-lg">
                 <svg
@@ -406,7 +490,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                   Virement Automatique
                 </h3>
                 <p className="text-[9px] font-black uppercase text-indigo-300 tracking-[0.2em]">
-                  Configuré pour le marché Algérien
+                  Coordonnées de paiement hôte
                 </p>
               </div>
             </div>
@@ -461,7 +545,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                   <div
                     className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${
                       payoutForm.method === 'RIB'
-                        ? 'bg-indigo-600 text:white scale-110'
+                        ? 'bg-indigo-600 text-white scale-110'
                         : 'bg-gray-100 text-gray-400'
                     }`}
                   >
@@ -547,7 +631,11 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                       })
                     }
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-indigo-950 outline-none focus:border-indigo-600 tracking-widest transition-all text-sm"
-                    placeholder="007 99999 0000 1234567 89"
+                    placeholder={
+                      payoutForm.method === 'CCP'
+                        ? 'RIP CCP (20 chiffres)'
+                        : 'RIB (20 chiffres)'
+                    }
                   />
                 </div>
               </div>
@@ -606,7 +694,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                       className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${
                         record.status === 'COMPLETED'
                           ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                          : 'bg-amber-500/10 text-amber-500 border border-amber-500/20 animate-pulse'
+                          : 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse'
                       }`}
                     >
                       {record.status === 'COMPLETED'
@@ -620,7 +708,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                     </p>
                     <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mt-1">
                       Transféré le{' '}
-                      {new Date(record.date).toLocaleDateString()}
+                      {new Date(
+                        record.date
+                      ).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
