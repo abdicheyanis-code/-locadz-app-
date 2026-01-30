@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient';
-import { UserProfile, UserRole } from '../types';
+import { UserProfile, UserRole, PayoutDetails } from '../types';
 
 const SESSION_KEY = 'locadz_session';
 
@@ -7,7 +7,9 @@ const SESSION_KEY = 'locadz_session';
  * Construit un avatar par défaut (DiceBear) à partir de l'email ou de l'id
  */
 const buildAvatarUrl = (email: string | null, id: string) =>
-  `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email || id)}`;
+  `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+    email || id
+  )}`;
 
 /**
  * Mappe une ligne de la table public.users vers ton type UserProfile
@@ -77,7 +79,9 @@ const fetchOrCreateCurrentUserProfile = async (): Promise<UserProfile | null> =>
   if (!row) {
     // Pas encore de profil -> on le crée à partir des metadata
     const full_name =
-      (authUser.user_metadata as any)?.full_name || authUser.email || 'LOCADZ Member';
+      (authUser.user_metadata as any)?.full_name ||
+      authUser.email ||
+      'LOCADZ Member';
     const phone_number = (authUser.user_metadata as any)?.phone_number || null;
     const role = ((authUser.user_metadata as any)?.role as UserRole) || 'TRAVELER';
     const avatar_url = buildAvatarUrl(authUser.email, authUser.id);
@@ -149,7 +153,10 @@ export const authService = {
 
     if (error) {
       const msg = (error.message || '').toLowerCase();
-      if (msg.includes('user already registered') || msg.includes('already exists')) {
+      if (
+        msg.includes('user already registered') ||
+        msg.includes('already exists')
+      ) {
         // Email déjà utilisé → pas d'email de vérification envoyé par Supabase
         return { error: 'EMAIL_EXISTS' };
       }
@@ -178,7 +185,10 @@ export const authService = {
         if (msg.includes('email not confirmed')) {
           throw new Error('EMAIL_NOT_CONFIRMED');
         }
-        if (msg.includes('invalid login credentials') || error.status === 400) {
+        if (
+          msg.includes('invalid login credentials') ||
+          error.status === 400
+        ) {
           throw new Error('INVALID_CREDENTIALS');
         }
         throw error;
@@ -214,12 +224,36 @@ export const authService = {
   },
 
   /**
-   * Mise à jour du profil dans public.users
+   * Mise à jour générique du profil dans public.users
    */
   updateProfile: async (id: string, updates: Partial<UserProfile>) => {
     const { data, error } = await supabase
       .from('users')
       .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (data) {
+      const profile = mapRowToUserProfile(data);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
+      return profile;
+    }
+    return null;
+  },
+
+  /**
+   * Mise à jour spécifique des coordonnées de paiement de l'hôte (payout_details)
+   * -> stockées dans la colonne payout_details de la table users
+   */
+  updatePayoutDetails: async (
+    id: string,
+    payout: PayoutDetails
+  ): Promise<UserProfile | null> => {
+    const { data, error } = await supabase
+      .from('users')
+      .update({ payout_details: payout })
       .eq('id', id)
       .select()
       .single();
