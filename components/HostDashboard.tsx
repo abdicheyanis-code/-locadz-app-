@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Property,
   UserProfile,
-  Payout,
   Booking,
   BookingStatus,
   PayoutRecord,
@@ -21,30 +20,6 @@ interface HostDashboardProps {
   hostName: string;
   onRefresh: () => void;
 }
-
-const MOCK_PAYOUT_HISTORY: PayoutRecord[] = [
-  {
-    id: 'PAY-8821',
-    amount: 45000,
-    date: '2024-03-15',
-    method: 'CCP',
-    status: 'COMPLETED',
-  },
-  {
-    id: 'PAY-8754',
-    amount: 28000,
-    date: '2024-03-01',
-    method: 'RIB',
-    status: 'COMPLETED',
-  },
-  {
-    id: 'PAY-8901',
-    amount: 12500,
-    date: '2024-03-22',
-    method: 'CCP',
-    status: 'PROCESSING',
-  },
-];
 
 const PropertyCalendar: React.FC<{ propertyId: string }> = ({ propertyId }) => {
   const now = new Date();
@@ -143,6 +118,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [totalBookings, setTotalBookings] = useState(0);
 
+  // ⚠️ historique réel de virements (pour l’instant vide tant qu’on n’a pas de vraie source)
+  const [payoutHistory, setPayoutHistory] = useState<PayoutRecord[]>([]);
+
   const loadDashboardData = useCallback(async () => {
     const props = await propertyService.getByHost(hostId);
     setMyProperties(props);
@@ -161,6 +139,13 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         b => b.status === 'APPROVED' || b.status === 'PAID'
       ).length
     );
+
+    // TODO : quand tu auras une table "payouts" réelle,
+    // tu pourras charger l’historique ici, par ex :
+    // const history = await payoutService.getHistory(hostId);
+    // setPayoutHistory(history);
+    setPayoutHistory([]); // pour l’instant : aucun virement affiché tant que c’est pas branché
+
     setLoadingRequests(false);
   }, [hostId]);
 
@@ -357,7 +342,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             ))}
           </div>
         ) : (
-          <div className="p-12 bg-white/5 border border-white/10 rounded-[2.5rem] text-center opacity-20 italic font-black uppercase text-xs tracking-[0.4em]">
+          <div className="p-12 bg:white/5 border border-white/10 rounded-[2.5rem] text-center opacity-20 italic font-black uppercase text-xs tracking-[0.4em]">
             Aucune demande en attente
           </div>
         )}
@@ -399,7 +384,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         </div>
 
         <div className="lg:w-2/3">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-[3rem] p-10 border border-white shadow-2xl h-full flex flex-col">
+          <div className="bg-white/95 backdrop-blur-2xl rounded-[3rem] p-10 border border:white shadow-2xl h-full flex flex-col">
             <div className="flex items-center gap-4 mb-8">
               <div className="bg-indigo-600 p-3 rounded-2xl shadow-lg">
                 <svg
@@ -420,7 +405,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                 <h3 className="text-2xl font-black italic text-indigo-950 tracking-tighter">
                   Virement Automatique
                 </h3>
-                <p className="text-[9px] font-bold uppercase text-indigo-300 tracking-[0.2em]">
+                <p className="text-[9px] font-black uppercase text-indigo-300 tracking-[0.2em]">
                   Configuré pour le marché Algérien
                 </p>
               </div>
@@ -476,7 +461,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                   <div
                     className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${
                       payoutForm.method === 'RIB'
-                        ? 'bg-indigo-600 text-white scale-110'
+                        ? 'bg-indigo-600 text:white scale-110'
                         : 'bg-gray-100 text-gray-400'
                     }`}
                   >
@@ -602,70 +587,71 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
           <div className="h-[1px] flex-1 bg-white/10" />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {MOCK_PAYOUT_HISTORY.map(record => (
-            <div
-              key={record.id}
-              className="bg-white/5 backdrop-blur-3xl border border-white/10 p-8 rounded-[2.5rem] flex flex-col justify-between hover:bg-white/10 transition-all group overflow-hidden relative"
-            >
-              <div className="absolute top-0 right-0 p-6 opacity-5 text-4xl group-hover:rotate-12 transition-transform select-none">
-                {record.method === 'CCP' ? '📮' : '🏦'}
-              </div>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">
-                    {record.id}
+        {payoutHistory.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {payoutHistory.map(record => (
+              <div
+                key={record.id}
+                className="bg-white/5 backdrop-blur-3xl border border-white/10 p-8 rounded-[2.5rem] flex flex-col justify-between hover:bg-white/10 transition-all group overflow-hidden relative"
+              >
+                <div className="absolute top-0 right-0 p-6 opacity-5 text-4xl group-hover:rotate-12 transition-transform select-none">
+                  {record.method === 'CCP' ? '📮' : '🏦'}
+                </div>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">
+                      {record.id}
+                    </span>
+                    <span
+                      className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${
+                        record.status === 'COMPLETED'
+                          ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-500 border border-amber-500/20 animate-pulse'
+                      }`}
+                    >
+                      {record.status === 'COMPLETED'
+                        ? 'Virement Effectué'
+                        : 'En Cours'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-3xl font-black text-white tracking-tighter italic">
+                      {formatCurrency(record.amount)}
+                    </p>
+                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mt-1">
+                      Transféré le{' '}
+                      {new Date(record.date).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">
+                    Via {record.method}
                   </span>
-                  <span
-                    className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${
-                      record.status === 'COMPLETED'
-                        ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-500 border border-amber-500/20 animate-pulse'
-                    }`}
+                  <svg
+                    className="w-4 h-4 text-white/20"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    {record.status === 'COMPLETED'
-                      ? 'Virement Effectué'
-                      : 'En Cours'}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-3xl font-black text-white tracking-tighter italic">
-                    {formatCurrency(record.amount)}
-                  </p>
-                  <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mt-1">
-                    Transféré le{' '}
-                    {new Date(record.date).toLocaleDateString()}
-                  </p>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="3"
+                      d="M14 5l7 7m0 0l-7 7m7-7H3"
+                    />
+                  </svg>
                 </div>
               </div>
-              <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
-                <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">
-                  Via {record.method}
-                </span>
-                <svg
-                  className="w-4 h-4 text-white/20"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="3"
-                    d="M14 5l7 7m0 0l-7 7m7-7H3"
-                  />
-                </svg>
-              </div>
-            </div>
-          ))}
-          {MOCK_PAYOUT_HISTORY.length === 0 && (
-            <div className="col-span-full py-16 text-center border-2 border-dashed border-white/10 rounded-[2.5rem] opacity-20">
-              <p className="font-black uppercase tracking-[0.4em] text-[10px] text-white">
-                Aucun versement enregistré
-              </p>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="col-span-full py-16 text-center border-2 border-dashed border-white/10 rounded-[2.5rem] opacity-20">
+            <p className="font-black uppercase tracking-[0.4em] text-[10px] text-white">
+              Aucun versement enregistré
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Propriétés */}
