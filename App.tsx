@@ -21,6 +21,7 @@ import { favoriteService } from './services/favoriteService';
 import { bookingService } from './services/bookingService';
 import { parseSmartSearch } from './services/geminiService';
 import { TRANSLATIONS } from './services/i18n';
+import { BookingsView } from './components/BookingsView';
 
 type ActiveView =
   | 'EXPLORE'
@@ -466,41 +467,34 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              <div className="px-6 md:px-20 max-w-7xl mx-auto">
-                {activeView === 'ADMIN' && currentUser && (
-                  <AdminDashboard currentUser={currentUser} />
-                )}
+<div className="px-6 md:px-20 max-w-7xl mx-auto">
+  {activeView === 'ADMIN' && currentUser && (
+    <AdminDashboard currentUser={currentUser} />
+  )}
 
-                {activeView === 'PROFILE' && currentUser && (
-                  <ProfileSettings
-                    currentUser={currentUser}
-                    language={language}
-                    translations={t}
-                    onLogout={() => {
-                      authService.logout();
-                      setCurrentUser(null);
-                      setShowWelcome(true);
-                      navigate('/');
-                    }}
-                    onSwitchRole={() => {}}
-                  />
-                )}
+  {activeView === 'BOOKINGS' && currentUser && (
+    <BookingsView currentUser={currentUser} />
+  )}
 
-                {activeView === 'ABOUT' && (
-                  <>
-                    <AboutUs language={language} translations={t} />
-                    <LegalPages language={language} />
-                  </>
-                )}
+  {activeView === 'PROFILE' && currentUser && (
+    <ProfileSettings
+      ...
+    />
+  )}
 
-                {activeView === 'HOST_DASH' && currentUser && (
-                  <HostDashboard
-                    hostId={currentUser.id}
-                    hostName={currentUser.full_name}
-                    onRefresh={refreshData}
-                  />
-                )}
-              </div>
+  {activeView === 'ABOUT' && (
+    <>
+      <AboutUs language={language} translations={t} />
+      <LegalPages language={language} />
+    </>
+  )}
+
+  {activeView === 'HOST_DASH' && currentUser && (
+    <HostDashboard
+      ...
+    />
+  )}
+</div>
             </main>
           </>
         )}
