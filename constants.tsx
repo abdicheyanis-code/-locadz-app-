@@ -45,3 +45,20 @@ export const ALGERIAN_BANKS = [
   { id: 'AL_BARAKA', name: 'Al Baraka Bank Algeria' },
   { id: 'ABC', name: 'Arab Banking Corporation (ABC)' },
 ];
+
+/**
+ * Coordonnées de paiement de la PLATEFORME LOCA DZ
+ * → Ce sont tes comptes personnels / business où les voyageurs envoient l'argent.
+ * Remplace les valeurs ci‑dessous par tes vrais numéros.
+ */
+export const PLATFORM_PAYOUT = {
+  ccp: {
+    accountName: 'TON NOM COMPLET',
+    accountNumber: '00000000000000000000', // 20 chiffres RIP CCP
+  },
+  rib: {
+    accountName: 'TON NOM COMPLET',
+    bankName: "Banque Extérieure d'Algérie (BEA)", // par ex.
+    accountNumber: '00000000000000000000', // 20 chiffres RIB
+  },
+} as const;
