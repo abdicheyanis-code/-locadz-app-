@@ -10,6 +10,30 @@ interface EditPropertyModalProps {
   onSuccess: () => void;
 }
 
+const extractLatLngFromGoogleMapsUrl = (
+  url: string
+): { lat: number; lng: number } | null => {
+  try {
+    const u = new URL(url);
+    const q = u.searchParams.get('q');
+    if (q && q.match(/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/)) {
+      const [latStr, lngStr] = q.split(',');
+      const lat = parseFloat(latStr);
+      const lng = parseFloat(lngStr);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+    const match = url.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+    if (match) {
+      const lat = parseFloat(match[1]);
+      const lng = parseFloat(match[2]);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 export const EditPropertyModal: React.FC<EditPropertyModalProps> = ({
   isOpen,
   onClose,
@@ -22,6 +46,7 @@ export const EditPropertyModal: React.FC<EditPropertyModalProps> = ({
     price: 0,
     category: 'trending',
     description: '',
+    mapsUrl: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,6 +58,7 @@ export const EditPropertyModal: React.FC<EditPropertyModalProps> = ({
         price: property.price || 0,
         category: property.category || 'trending',
         description: property.description || '',
+        mapsUrl: property.maps_url || '',
       });
     }
   }, [isOpen, property]);
@@ -44,12 +70,27 @@ export const EditPropertyModal: React.FC<EditPropertyModalProps> = ({
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
+      let latitude: number | undefined;
+      let longitude: number | undefined;
+      const trimmedUrl = formData.mapsUrl.trim();
+      if (trimmedUrl) {
+        const coords = extractLatLngFromGoogleMapsUrl(trimmedUrl);
+        if (coords) {
+          latitude = coords.lat;
+          longitude = coords.lng;
+        }
+      }
+
       const ok = await propertyService.update(property.id, {
         title: formData.title,
         location: formData.location,
         price: formData.price,
         category: formData.category,
         description: formData.description,
+        maps_url: trimmedUrl || null,
+        ...(latitude !== undefined && longitude !== undefined
+          ? { latitude, longitude }
+          : {}),
       });
       if (ok) {
         onSuccess();
@@ -143,6 +184,22 @@ export const EditPropertyModal: React.FC<EditPropertyModalProps> = ({
                   placeholder="Alger, Algérie"
                 />
               </div>
+            </div>
+
+            {/* Lien Google Maps */}
+            <div className="space-y-1">
+              <label className={labelClasses}>
+                Lien Google Maps (optionnel)
+              </label>
+              <input
+                type="text"
+                value={formData.mapsUrl}
+                onChange={e =>
+                  setFormData({ ...formData, mapsUrl: e.target.value })
+                }
+                className={inputClasses}
+                placeholder="Colle ici le lien Google Maps du logement"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
