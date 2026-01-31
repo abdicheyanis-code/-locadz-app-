@@ -25,7 +25,7 @@ export const propertyService = {
       return data.publicUrl;
     } catch (err) {
       console.error('Upload image error:', err);
-      // Pas d’URL fake : si l’upload échoue, on renvoie null
+      // Si l'upload échoue, on ne renvoie pas d'URL
       return null;
     }
   },
@@ -200,6 +200,45 @@ export const propertyService = {
       return true;
     } catch (err) {
       console.error('update property error:', err);
+      return false;
+    }
+  },
+
+  // Suppression d'un bien + ses images + ses réservations
+  remove: async (id: string): Promise<boolean> => {
+    try {
+      // Supprimer d'abord les images liées
+      const { error: imgError } = await supabase
+        .from('property_images')
+        .delete()
+        .eq('property_id', id);
+
+      if (imgError) {
+        console.error('delete property_images error:', imgError);
+        // on continue quand même, si la table est vide ce n’est pas bloquant
+      }
+
+      // Supprimer les réservations liées (optionnel, selon ton modèle)
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .delete()
+        .eq('property_id', id);
+
+      if (bookingError) {
+        console.error('delete bookings for property error:', bookingError);
+        // pareil, on continue : si pas de FK, ce n’est pas bloquant
+      }
+
+      // Enfin, supprimer le bien lui-même
+      const { error } = await supabase
+        .from('properties')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error('remove property error:', err);
       return false;
     }
   },
