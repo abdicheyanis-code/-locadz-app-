@@ -271,6 +271,8 @@ export const authService = {
     });
 
     if (error) {
+      console.error('resetPasswordForEmail error:', error);
+
       const msg = (error.message || '').toLowerCase();
 
       if (msg.includes('rate limit')) {
