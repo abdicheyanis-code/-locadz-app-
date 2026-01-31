@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { Booking, BookingStatus } from '../types';
+import { createNotification } from './notifications';
 
 export const bookingService = {
   // Vérifie si un créneau est dispo pour un bien
@@ -67,8 +68,6 @@ export const bookingService = {
       Number(bookingData.service_fee_client ?? 0) +
       Number(bookingData.host_commission ?? 0);
 
-    // On laisse Supabase générer l'id si ta table a un default,
-    // mais on garde crypto.randomUUID si ton schéma attend un id fourni.
     const newBooking: Booking = {
       id: crypto.randomUUID(),
       ...bookingData,
@@ -85,7 +84,41 @@ export const bookingService = {
         .single();
 
       if (error) throw error;
-      return data as Booking;
+
+      const created = data as Booking;
+
+      // 🔔 NOTIF 1 : nouvelle demande de réservation (vers l’hôte)
+      try {
+        // On récupère l’hôte à partir du logement
+        const { data: property, error: propError } = await supabase
+          .from('properties')
+          .select('host_id, title')
+          .eq('id', created.property_id)
+          .single();
+
+        if (!propError && property?.host_id) {
+          await createNotification({
+            recipientId: property.host_id,
+            type: 'booking_created',
+            title: 'Nouvelle demande de réservation',
+            body:
+              (property.title
+                ? `Un voyageur souhaite réserver "${property.title}".`
+                : 'Un voyageur souhaite réserver votre logement.') +
+              ' Connectez-vous à LOCA DZ pour accepter ou refuser.',
+            data: {
+              booking_id: created.id,
+              property_id: created.property_id,
+              status: created.status,
+            },
+          });
+        }
+      } catch (notifError) {
+        console.error('createBooking notification error', notifError);
+        // On n’empêche pas la réservation si la notif échoue
+      }
+
+      return created;
     } catch (e) {
       console.error('createBooking error', e);
       // Pas de fallback local : si l’insert échoue, on considère la résa non créée
@@ -98,12 +131,64 @@ export const bookingService = {
     status: BookingStatus
   ): Promise<boolean> => {
     try {
+      // On récupère la réservation avant de la modifier
+      const { data: bookingRow, error: fetchError } = await supabase
+        .from('bookings')
+        .select('id, traveler_id, property_id, status')
+        .eq('id', bookingId)
+        .single();
+
+      if (fetchError || !bookingRow) {
+        console.error('updateBookingStatus: booking not found', fetchError);
+        return false;
+      }
+
+      const previousStatus = bookingRow.status as BookingStatus;
+
       const { error } = await supabase
         .from('bookings')
         .update({ status })
         .eq('id', bookingId);
 
       if (error) throw error;
+
+      // 🔔 NOTIF 2 : réponse de l’hôte au voyageur
+      // On ne notifie que si on passe de PENDING_APPROVAL -> APPROVED / REJECTED
+      if (
+        previousStatus === 'PENDING_APPROVAL' &&
+        (status === 'APPROVED' || status === 'REJECTED')
+      ) {
+        try {
+          const { data: property, error: propError } = await supabase
+            .from('properties')
+            .select('title')
+            .eq('id', bookingRow.property_id)
+            .single();
+
+          const accepted = status === 'APPROVED';
+
+          if (!propError && bookingRow.traveler_id) {
+            await createNotification({
+              recipientId: bookingRow.traveler_id,
+              type: accepted ? 'booking_accepted' : 'booking_rejected',
+              title: accepted
+                ? 'Votre réservation a été acceptée'
+                : 'Votre réservation a été refusée',
+              body: property?.title
+                ? `Logement : "${property.title}"`
+                : undefined,
+              data: {
+                booking_id: bookingRow.id,
+                property_id: bookingRow.property_id,
+                status,
+              },
+            });
+          }
+        } catch (notifError) {
+          console.error('updateBookingStatus notification error', notifError);
+        }
+      }
+
       return true;
     } catch (e) {
       console.error('updateBookingStatus error', e);
