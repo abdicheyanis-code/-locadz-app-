@@ -104,7 +104,6 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
   const [pendingRequests, setPendingRequests] = useState<Booking[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
 
-  // Formulaire de configuration des virements (UNE méthode à la fois : CCP OU RIB)
   const [payoutForm, setPayoutForm] = useState({
     method: 'CCP' as 'CCP' | 'RIB',
     account_name: hostName,
@@ -141,7 +140,6 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
       ).length
     );
 
-    // Charger l'historique réel des virements depuis la table payouts
     const payouts = await payoutsService.getHostPayouts(hostId);
     setPayoutHistory(payouts);
 
@@ -154,7 +152,6 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
       if (session) {
         setCurrentUser(session);
 
-        // Pré-remplir le formulaire avec payout_details si déjà configuré
         const pd = session.payout_details as PayoutDetails | undefined;
         if (pd && pd.method !== 'NONE') {
           setPayoutForm(prev => ({
@@ -266,6 +263,21 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
     }
   };
 
+  const handleDeleteProperty = async (propertyId: string, title: string) => {
+    const ok = window.confirm(
+      `Tu es sûr de vouloir supprimer le logement "${title}" ? Cette action est définitive.`
+    );
+    if (!ok) return;
+
+    const success = await propertyService.remove(propertyId);
+    if (success) {
+      await loadDashboardData();
+      onRefresh();
+    } else {
+      alert("Impossible de supprimer ce logement pour l'instant.");
+    }
+  };
+
   const isVerified =
     currentUser?.id_verification_status === 'VERIFIED';
 
@@ -320,7 +332,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             {pendingRequests.map(req => (
               <div
                 key={req.id}
-                className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-indigo-100 flex flex-col justify-between animate-in zoom-in-95 durée-500"
+                className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-indigo-100 flex flex-col justify-between animate-in zoom-in-95 duration-500"
               >
                 <div className="space-y-4">
                   <div className="flex justify-between items-start">
@@ -413,7 +425,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
       >
         <div className="lg:w-1/3 space-y-8">
           <div className="bg-white/20 backdrop-blur-2xl p-8 rounded-[3rem] border border-white/40 shadow-2xl relative overflow-hidden group">
-            <p className="text-[10px] font-black uppercase tracking-widest text:white/60 mb-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">
               Revenu Confirmé (DZD)
             </p>
             <h2 className="text-4xl md:text-5xl font-black text-white italic">
@@ -425,15 +437,15 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
           </div>
 
           <div className="bg-indigo-600 p-8 rounded-[3rem] shadow-2xl relative overflow-hidden group">
-            <p className="text-[10px] font-black uppercase tracking-widest text:white/60 mb-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">
               Réservations Approuvées
             </p>
-            <h2 className="text-4xl md:text-5xl font-black text:white italic">
+            <h2 className="text-4xl md:text-5xl font-black text-white italic">
               {totalBookings}
             </h2>
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="mt-6 bg:white text-indigo-600 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-xl active:scale-95 w-full"
+              className="mt-6 bg-white text-indigo-600 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-xl active:scale-95 w-full"
             >
               Ajouter Logement DZ
             </button>
@@ -442,11 +454,11 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
 
         {/* Config virement */}
         <div className="lg:w-2/3">
-          <div className="bg:white/95 backdrop-blur-2xl rounded-[3rem] p-10 border border:white shadow-2xl h-full flex flex-col">
+          <div className="bg-white/95 backdrop-blur-2xl rounded-[3rem] p-10 border border-white shadow-2xl h-full flex flex-col">
             <div className="flex items-center gap-4 mb-8">
               <div className="bg-indigo-600 p-3 rounded-2xl shadow-lg">
                 <svg
-                  className="w-5 h-5 text:white"
+                  className="w-5 h-5 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -482,9 +494,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                   }`}
                 >
                   <div
-                    className={`w-12 h-12 rounded-2xl flex items:center justify-center text-2xl ${
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${
                       payoutForm.method === 'CCP'
-                        ? 'bg-indigo-600 text:white scale-110'
+                        ? 'bg-indigo-600 text-white scale-110'
                         : 'bg-gray-100 text-gray-400'
                     }`}
                   >
@@ -517,9 +529,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                   }`}
                 >
                   <div
-                    className={`w-12 h-12 rounded-2xl flex items:center justify-center text-2xl ${
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${
                       payoutForm.method === 'RIB'
-                        ? 'bg-indigo-600 text:white scale-110'
+                        ? 'bg-indigo-600 text-white scale-110'
                         : 'bg-gray-100 text-gray-400'
                     }`}
                   >
@@ -675,21 +687,21 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                     </span>
                   </div>
                   <div>
-                    <p className="text-3xl font-black text:white tracking-tighter italic">
+                    <p className="text-3xl font-black text-white tracking-tighter italic">
                       {formatCurrency(record.amount)}
                     </p>
-                    <p className="text-[9px] font-black text:white/40 uppercase tracking-widest mt-1">
+                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mt-1">
                       Transféré le{' '}
                       {new Date(record.date).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
                 <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
-                  <span className="text-[8px] font-black text:white/30 uppercase tracking-widest">
+                  <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">
                     Via {record.method}
                   </span>
                   <svg
-                    className="w-4 h-4 text:white/20"
+                    className="w-4 h-4 text-white/20"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -707,7 +719,7 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
           </div>
         ) : (
           <div className="col-span-full py-16 text-center border-2 border-dashed border-white/10 rounded-[2.5rem] opacity-20">
-            <p className="font-black uppercase tracking-[0.4em] text-[10px] text:white">
+            <p className="font-black uppercase tracking-[0.4em] text-[10px] text-white">
               Aucun versement enregistré
             </p>
           </div>
@@ -732,35 +744,59 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                 alt={prop.title}
               />
               <div className="flex-1">
-                <div className="flex justify-between items-center mb-1">
-                  <h4 className="font-black text-indigo-900 text-xl italic">
+                <div className="flex justify-between items-center mb-1 gap-2">
+                  <h4 className="font-black text-indigo-900 text-xl italic line-clamp-2">
                     {prop.title}
                   </h4>
-                  <button
-                    onClick={() =>
-                      handleUpdatePrice(prop.id, prop.price)
-                    }
-                    className="text-indigo-600 hover:text-indigo-800 p-2 bg-indigo-50 rounded-xl transition-all hover:scale-110"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        handleUpdatePrice(prop.id, prop.price)
+                      }
+                      className="text-indigo-600 hover:text-indigo-800 p-2 bg-indigo-50 rounded-xl transition-all hover:scale-110"
+                      title="Modifier le prix"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="3"
-                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="3"
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleDeleteProperty(prop.id, prop.title)
+                      }
+                      className="text-rose-500 hover:text-rose-700 p-2 bg-rose-50 rounded-xl transition-all hover:scale-110"
+                      title="Supprimer le logement"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2.5"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <p className="text-gray-400 text-xs font-bold uppercase tracking-wide mb-2">
                   {prop.location}
                 </p>
-                <div className="bg-indigo-50 px-3 py-1.5 rounded-xl inline-flex items:center gap-2">
+                <div className="bg-indigo-50 px-3 py-1.5 rounded-xl inline-flex items-center gap-2">
                   <span className="text-[10px] font-black text-indigo-400 uppercase">
                     Tarif:
                   </span>
@@ -775,9 +811,9 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         ))}
         <button
           onClick={() => setIsAddModalOpen(true)}
-          className="border-4 border-dashed border-white/20 rounded-[2.5rem] flex flex-col items:center justify-center p-12 text:white hover:bg:white/10 hover:border:white/40 transition-all min-h-[300px] group"
+          className="border-4 border-dashed border-white/20 rounded-[2.5rem] flex flex-col items-center justify-center p-12 text-white hover:bg-white/10 hover:border-white/40 transition-all min-h-[300px] group"
         >
-          <div className="w-16 h-16 rounded-3xl bg:white/20 flex items:center justify-center mb-6">
+          <div className="w-16 h-16 rounded-3xl bg-white/20 flex items-center justify-center mb-6">
             <svg
               className="w-8 h-8"
               fill="none"
