@@ -55,7 +55,6 @@ const fetchOrCreateCurrentUserProfile = async (): Promise<UserProfile | null> =>
   const authUser = userData.user;
 
   // Sécurité : si l'email n'est pas confirmé, on refuse la session
-  // (normalement Supabase ne crée pas de session tant que l'email n'est pas confirmé)
   if (!authUser.email_confirmed_at) {
     await supabase.auth.signOut();
     localStorage.removeItem(SESSION_KEY);
@@ -111,8 +110,6 @@ const fetchOrCreateCurrentUserProfile = async (): Promise<UserProfile | null> =>
 export const authService = {
   /**
    * Inscription : email + mot de passe + nom + téléphone + rôle
-   * - Vérifie d'abord si le téléphone est déjà utilisé
-   * - Supabase enverra un email de confirmation SI et SEULEMENT SI l'inscription réussit.
    */
   register: async (
     fullName: string,
@@ -157,20 +154,18 @@ export const authService = {
         msg.includes('user already registered') ||
         msg.includes('already exists')
       ) {
-        // Email déjà utilisé → pas d'email de vérification envoyé par Supabase
         return { error: 'EMAIL_EXISTS' };
       }
       return { error: error.message || 'UNKNOWN_ERROR' };
     }
 
-    // Pas de session tant que l'email n'est pas confirmé -> on ne retourne pas de user
     return { error: null };
   },
 
   /**
    * Connexion :
-   * - Appelé depuis AuthModal avec email + password -> vrai login
-   * - Appelé sans password (depuis App.tsx) -> rafraîchit la session à partir de Supabase
+   * - avec email + password -> vrai login
+   * - sans password -> rafraîchir la session à partir de Supabase
    */
   login: async (email: string, password?: string): Promise<UserProfile | null> => {
     if (password) {
@@ -195,7 +190,6 @@ export const authService = {
       }
     }
 
-    // Que ce soit après un vrai login ou au rafraîchissement, on récupère le profil courant
     const profile = await fetchOrCreateCurrentUserProfile();
     return profile;
   },
@@ -224,7 +218,7 @@ export const authService = {
   },
 
   /**
-   * Mise à jour générique du profil dans public.users
+   * Mise à jour du profil dans public.users
    */
   updateProfile: async (id: string, updates: Partial<UserProfile>) => {
     const { data, error } = await supabase
@@ -244,8 +238,7 @@ export const authService = {
   },
 
   /**
-   * Mise à jour spécifique des coordonnées de paiement de l'hôte (payout_details)
-   * -> stockées dans la colonne payout_details de la table users
+   * Mise à jour des coordonnées de paiement de l'hôte (payout_details)
    */
   updatePayoutDetails: async (
     id: string,
@@ -271,24 +264,27 @@ export const authService = {
    * Envoie un email de réinitialisation de mot de passe
    */
   forgotPassword: async (email: string): Promise<void> => {
-  const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = email.toLowerCase().trim();
 
-  const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-    redirectTo: 'https://locadz-app.vercel.app/reset-password',
-  });
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: 'https://locadz-app.vercel.app/reset-password',
+    });
 
-  if (error) {
-    const msg = (error.message || '').toLowerCase();
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
 
-    if (msg.includes('rate limit')) {
-      throw new Error('EMAIL_RATE_LIMIT');
+      if (msg.includes('rate limit')) {
+        // Trop de demandes en peu de temps
+        throw new Error('EMAIL_RATE_LIMIT');
+      }
+
+      if (msg.includes('email not confirmed')) {
+        throw new Error('EMAIL_NOT_CONFIRMED');
+      }
+
+      throw error;
     }
+  },
+};
 
-    if (msg.includes('email not confirmed')) {
-      throw new Error('EMAIL_NOT_CONFIRMED');
-    }
-
-    throw error;
-  }
-}
 export default authService;
